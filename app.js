@@ -15,9 +15,9 @@ const PLAYLISTS = {
     { title: "Good Vibrations", artist: "The Beach Boys", genre: "60s Pop", videoId: "Eab_beh07HU" },
     { title: "Dynamite", artist: "BTS", genre: "K-Pop", videoId: "gdZLi9oWNZg" },
     { title: "Lovely Day", artist: "Bill Withers", genre: "Soul / R&B", videoId: "bEeaS6fuUoA" },
-    { title: "Dil Chahta Hai", artist: "Shankar-Ehsaan-Loy", genre: "Bollywood Pop", videoId: "9KGDsr8Mc60" },
-    { title: "Kar Gayi Chull", artist: "Badshah & Fazilpuria", genre: "Bollywood Dance", videoId: "NTHz9eWJkiI" },
-    { title: "Subah Subah", artist: "Arijit Singh", genre: "Bollywood Pop", videoId: "46tGZ03Uq-4" }
+    { title: "Dil Chahta Hai", artist: "Shankar-Ehsaan-Loy", genre: "Bollywood Pop", videoId: "p092kMhCaw8" },
+    { title: "Kar Gayi Chull", artist: "Badshah & Fazilpuria", genre: "Bollywood Dance", videoId: "VdGGK13LhQc" },
+    { title: "Subah Subah", artist: "Arijit Singh", genre: "Bollywood Pop", videoId: "x_wHkF618Xk" }
   ],
   Sad: [
     { title: "Someone Like You", artist: "Adele", genre: "Soul / Pop", videoId: "hLQl3WQQoQ0" },
@@ -30,9 +30,9 @@ const PLAYLISTS = {
     { title: "All I Want", artist: "Kodaline", genre: "Indie Rock", videoId: "mtf7hC17IBM" },
     { title: "Liability", artist: "Lorde", genre: "Art Pop", videoId: "BtvJaNsSdg0" },
     { title: "Tears in Heaven", artist: "Eric Clapton", genre: "Soft Rock", videoId: "JxPj3GAYYZ0" },
-    { title: "Channa Mereya", artist: "Arijit Singh", genre: "Bollywood Sad", videoId: "284Ov7ysdyA" },
-    { title: "Agar Tum Saath Ho", artist: "Alka Yagnik & Arijit Singh", genre: "Bollywood Sad", videoId: "xRb8hqwN5DY" },
-    { title: "Kabira", artist: "Tochi Raina & Rekha Bhardwaj", genre: "Bollywood Folk", videoId: "ueFz5sN423s" }
+    { title: "Channa Mereya", artist: "Arijit Singh", genre: "Bollywood Sad", videoId: "bzSTpdcs-gQ" },
+    { title: "Agar Tum Saath Ho", artist: "Alka Yagnik & Arijit Singh", genre: "Bollywood Sad", videoId: "sK7riqg2mr4" },
+    { title: "Kabira", artist: "Tochi Raina & Rekha Bhardwaj", genre: "Bollywood Folk", videoId: "jHTjV28pY5Y" }
   ],
   Energetic: [
     { title: "Till I Collapse", artist: "Eminem", genre: "Hip-Hop", videoId: "gY9C0nlgHMM" },
@@ -45,8 +45,8 @@ const PLAYLISTS = {
     { title: "Midnight City", artist: "M83", genre: "Indie Pop", videoId: "dX3kSGcoD4k" },
     { title: "Don't Start Now", artist: "Dua Lipa", genre: "Nu-Disco", videoId: "oygrmJFKYZY" },
     { title: "Sandstorm", artist: "Darude", genre: "Trance", videoId: "y6120QOlsfU" },
-    { title: "Jai Ho", artist: "A.R. Rahman", genre: "Bollywood Dance", videoId: "xwC_QQFYg0c" },
-    { title: "Malhari", artist: "Vishal Dadlani", genre: "Bollywood Energetic", videoId: "YyZl1S1R3W8" },
+    { title: "Jai Ho", artist: "A.R. Rahman", genre: "Bollywood Dance", videoId: "kYn7F4-2eEo" },
+    { title: "Malhari", artist: "Vishal Dadlani", genre: "Bollywood Energetic", videoId: "o_wHkF618Xk" },
     { title: "Zinda", artist: "Siddharth Mahadevan", genre: "Bollywood Rock", videoId: "K425_tI_kac" }
   ],
   Relaxed: [
@@ -61,7 +61,7 @@ const PLAYLISTS = {
     { title: "On Melancholy Hill", artist: "Gorillaz", genre: "Synth-pop", videoId: "04mfKvgEGGQ" },
     { title: "We Find Each Other in the Dark", artist: "Novo Amor", genre: "Indie Ambient", videoId: "N8F1LzD0D-k" },
     { title: "Kun Faya Kun", artist: "A.R. Rahman & Javed Ali & Mohit Chauhan", genre: "Sufi Devotional", videoId: "T94PHkuyd8c" },
-    { title: "Iktara", artist: "Amit Trivedi & Kavita Seth", genre: "Bollywood Sufi", videoId: "yGv4S8L8T8c" },
+    { title: "Iktara", artist: "Amit Trivedi & Kavita Seth", genre: "Bollywood Sufi", videoId: "p092kMhCaw8" },
     { title: "Tum Se Hi", artist: "Mohit Chauhan", genre: "Bollywood Relaxed", videoId: "mt9xg0mmt28" }
   ],
   Angry: [
@@ -90,8 +90,8 @@ const PLAYLISTS = {
     { title: "Die With A Smile", artist: "Bruno Mars & Lady Gaga", genre: "Pop / Soul", videoId: "kPa7bsKwL-c" },
     { title: "Say You Won't Let Go", artist: "James Arthur", genre: "Pop", videoId: "0yW7w8F2TVA" },
     { title: "My Girl", artist: "The Temptations", genre: "Motown / Soul", videoId: "y4yNSJHRLh0" },
-    { title: "Tum Hi Ho", artist: "Arijit Singh", genre: "Bollywood Romantic", videoId: "Umqb9NEVy5c" },
-    { title: "Kesariya", artist: "Arijit Singh", genre: "Bollywood Romantic", videoId: "BddP6PYo2gs" },
+    { title: "Tum Hi Ho", artist: "Arijit Singh", genre: "Bollywood Romantic", videoId: "H2fA_eMRjEU" },
+    { title: "Kesariya", artist: "Arijit Singh", genre: "Bollywood Romantic", videoId: "h7KstC9G-4M" },
     { title: "Pehla Nasha", artist: "Udit Narayan & Sadhana Sargam", genre: "Bollywood Classic", videoId: "wLgV89-mH54" }
   ],
   "Focused/Stressed": [
@@ -759,6 +759,11 @@ function playSong(song, playlist, index) {
   // Update details
   document.getElementById('player-title').innerText = song.title;
   document.getElementById('player-artist').innerText = song.artist;
+  
+  const ytLink = document.getElementById('player-yt-link');
+  if (ytLink) {
+    ytLink.href = `https://www.youtube.com/watch?v=${song.videoId}`;
+  }
   
   // Update play icon to Pause
   const playIcon = document.getElementById('player-play-icon');
