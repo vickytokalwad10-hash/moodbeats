@@ -138,7 +138,11 @@ const state = {
   currentPlayerPlaylist: [],
   currentPlayerIndex: 0,
   isPlaying: false,
-  isVideoOpen: false
+  isVideoOpen: false,
+  
+  // Search parameters
+  searchMode: 'local',
+  ytSearchTimeout: null
 };
 
 // ==========================================
@@ -764,6 +768,10 @@ function playSong(song, playlist, index) {
   if (ytLink) {
     ytLink.href = `https://www.youtube.com/watch?v=${song.videoId}`;
   }
+  const spotifyLink = document.getElementById('player-spotify-link');
+  if (spotifyLink) {
+    spotifyLink.href = `https://open.spotify.com/search/${encodeURIComponent(song.title + ' ' + song.artist)}`;
+  }
   
   // Update play icon to Pause
   const playIcon = document.getElementById('player-play-icon');
@@ -1019,13 +1027,46 @@ function renderSearchResults(filteredSongs) {
 }
 
 function filterSongs() {
-  const query = document.getElementById('search-input').value.trim().toLowerCase();
+  const queryRaw = document.getElementById('search-input').value;
+  const query = queryRaw.trim().toLowerCase();
   const clearBtn = document.getElementById('btn-clear-search');
   
-  if (query !== '') {
+  if (queryRaw.trim() !== '') {
     clearBtn.style.display = 'flex';
   } else {
     clearBtn.style.display = 'none';
+  }
+  
+  // If in YouTube search mode, run the debounced API fetch
+  if (state.searchMode === 'youtube') {
+    if (state.ytSearchTimeout) {
+      clearTimeout(state.ytSearchTimeout);
+    }
+    
+    if (!query) {
+      renderSearchResults([]);
+      return;
+    }
+    
+    const statusBox = document.getElementById('yt-search-status');
+    if (statusBox) statusBox.style.display = 'flex';
+    
+    state.ytSearchTimeout = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/yt-search?q=${encodeURIComponent(query)}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (state.searchMode === 'youtube' && document.getElementById('search-input').value.trim().toLowerCase() === query) {
+            renderSearchResults(data);
+          }
+        }
+      } catch (err) {
+        console.error("YouTube remote search failed:", err);
+      } finally {
+        if (statusBox) statusBox.style.display = 'none';
+      }
+    }, 500);
+    return;
   }
   
   const activeChip = document.querySelector('.genre-chip.active');
@@ -1355,6 +1396,37 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.value = '';
     filterSongs();
   });
+  
+  // Search Mode Segmented Control Toggles
+  const btnLocal = document.getElementById('search-mode-local');
+  const btnYoutube = document.getElementById('search-mode-youtube');
+  const genreChipsContainer = document.querySelector('.genre-categories-container');
+  
+  if (btnLocal && btnYoutube) {
+    btnLocal.addEventListener('click', () => {
+      if (state.searchMode === 'local') return;
+      state.searchMode = 'local';
+      btnLocal.classList.add('active');
+      btnYoutube.classList.remove('active');
+      searchInput.placeholder = "Search local library...";
+      if (genreChipsContainer) genreChipsContainer.style.display = 'flex';
+      searchInput.value = '';
+      clearSearchBtn.style.display = 'none';
+      filterSongs();
+    });
+    
+    btnYoutube.addEventListener('click', () => {
+      if (state.searchMode === 'youtube') return;
+      state.searchMode = 'youtube';
+      btnYoutube.classList.add('active');
+      btnLocal.classList.remove('active');
+      searchInput.placeholder = "Search YouTube globally...";
+      if (genreChipsContainer) genreChipsContainer.style.display = 'none';
+      searchInput.value = '';
+      clearSearchBtn.style.display = 'none';
+      renderSearchResults([]);
+    });
+  }
   
   // Genre chip toggles
   const chips = document.querySelectorAll('.genre-chip');

@@ -2185,7 +2185,6 @@ body.phone-controller-active .app-container {
 .player-yt-link {
   display: inline-flex;
   align-items: center;
-  margin-top: 4px;
   font-size: 11px;
   font-weight: 700;
   color: #ef4444;
@@ -2197,12 +2196,82 @@ body.phone-controller-active .app-container {
 .player-yt-link:hover {
   opacity: 1;
   text-decoration: none;
-  transform: translateX(2px);
+  transform: translateY(-1px);
 }
 
 .player-yt-link span {
   font-size: 10px;
   letter-spacing: 0.2px;
 }
+
+/* Spotify Link Styles */
+.player-spotify-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1DB954;
+  text-decoration: none;
+  opacity: 0.85;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.player-spotify-link:hover {
+  opacity: 1;
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.player-spotify-link span {
+  font-size: 10px;
+  letter-spacing: 0.2px;
+}
+
+/* Search Mode segmented controls */
+.search-mode-toggle {
+  display: flex;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  padding: 4px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  width: 100%;
+  max-width: 320px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.search-toggle-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+}
+
+.search-toggle-btn.active {
+  background: var(--accent-color);
+  color: #ffffff !important;
+  box-shadow: 0 4px 10px var(--accent-glow);
+}
+
+.search-toggle-btn:hover:not(.active) {
+  color: var(--text-color);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+body.light-theme .search-toggle-btn:hover:not(.active) {
+  background: rgba(15, 23, 42, 0.05);
+}
+
 
 

@@ -97,6 +97,124 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // API Route for keyless YouTube video search
+  if (req.method === 'GET' && req.url.startsWith('/api/yt-search')) {
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const query = urlObj.searchParams.get('q') || '';
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    if (!query) {
+      res.statusCode = 200;
+      res.end(JSON.stringify([]));
+      return;
+    }
+    
+    const https = require('https');
+    const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%253D%253D`;
+    
+    const options = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9'
+      }
+    };
+    
+    https.get(ytUrl, options, (ytRes) => {
+      let html = '';
+      ytRes.on('data', chunk => {
+        html += chunk.toString();
+      });
+      ytRes.on('end', () => {
+        let results = [];
+        const seenIds = new Set();
+        
+        try {
+          const matchJson = html.match(/ytInitialData\s*=\s*({.+?});/);
+          if (matchJson) {
+            const json = JSON.parse(matchJson[1]);
+            let contents;
+            
+            if (json.contents && json.contents.twoColumnSearchResultsRenderer) {
+              contents = json.contents.twoColumnSearchResultsRenderer.primaryContents.sectionListRenderer.contents;
+            } else if (json.contents && json.contents.sectionListRenderer) {
+              contents = json.contents.sectionListRenderer.contents;
+            }
+            
+            if (contents) {
+              let items = [];
+              for (const c of contents) {
+                if (c.itemSectionRenderer) {
+                  items = c.itemSectionRenderer.contents;
+                  break;
+                }
+              }
+              
+              for (const item of items) {
+                if (item.videoRenderer) {
+                  const v = item.videoRenderer;
+                  const title = v.title.runs[0].text;
+                  const videoId = v.videoId;
+                  const channel = v.ownerText.runs[0].text;
+                  
+                  results.push({
+                    title: title,
+                    artist: channel,
+                    videoId: videoId,
+                    genre: 'YouTube'
+                  });
+                  seenIds.add(videoId);
+                  if (results.length >= 8) break;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("ytInitialData parse failed, running regex fallback:", e);
+        }
+        
+        if (results.length === 0) {
+          const videoTitleRegex = /"title":{"runs":\[{"text":"([^"]+)"}\],"accessibility"/g;
+          const idRegex = /"videoId":"([a-zA-Z0-9_-]{11})"/g;
+          
+          const ids = [];
+          const titles = [];
+          
+          let idMatch;
+          while ((idMatch = idRegex.exec(html)) !== null) {
+            ids.push(idMatch[1]);
+          }
+          
+          let titleMatch;
+          while ((titleMatch = videoTitleRegex.exec(html)) !== null) {
+            titles.push(titleMatch[1]);
+          }
+          
+          for (let i = 0; i < Math.min(ids.length, titles.length, 8); i++) {
+            if (!seenIds.has(ids[i])) {
+              seenIds.add(ids[i]);
+              results.push({
+                title: titles[i],
+                artist: 'YouTube Upload',
+                videoId: ids[i],
+                genre: 'YouTube'
+              });
+            }
+          }
+        }
+        
+        res.statusCode = 200;
+        res.end(JSON.stringify(results));
+      });
+    }).on('error', (err) => {
+      console.error("YouTube search request failed:", err);
+      res.statusCode = 500;
+      res.end(JSON.stringify([]));
+    });
+    return;
+  }
+
   // Normalize URL path and resolve relative path
   let filePath = req.url === '/' ? '/index.html' : req.url;
   // Strip query parameters

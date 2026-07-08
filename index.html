@@ -261,13 +261,31 @@
       <section id="view-search" class="view">
         <div class="screen-title-area">
           <h2>Search Music</h2>
-          <p>Find and play any song directly from our mood archives.</p>
+          <p>Find and play any song from our library or search YouTube globally.</p>
+        </div>
+
+        <!-- Search Mode Toggle Segmented Control -->
+        <div class="search-mode-toggle glass">
+          <button class="search-toggle-btn active" id="search-mode-local">
+            <i data-lucide="library" style="width: 14px; height: 14px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i>
+            <span>Library</span>
+          </button>
+          <button class="search-toggle-btn" id="search-mode-youtube">
+            <i data-lucide="youtube" style="width: 14px; height: 14px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i>
+            <span>YouTube Search</span>
+          </button>
         </div>
 
         <div class="search-bar-wrapper glass">
           <i data-lucide="search" class="search-input-icon"></i>
-          <input type="text" id="search-input" placeholder="Search songs, artists, or genres...">
+          <input type="text" id="search-input" placeholder="Search local library...">
           <button id="btn-clear-search" style="display: none;"><i data-lucide="x"></i></button>
+        </div>
+
+        <!-- YouTube Search Status Indicator -->
+        <div class="yt-search-loading" id="yt-search-status" style="display: none; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px; color: var(--text-muted); font-size: 13px;">
+          <div class="spinner" style="width: 16px; height: 16px; border-width: 2px; margin-bottom: 0; border-top-color: var(--accent-color);"></div>
+          <span>Searching YouTube...</span>
         </div>
 
         <!-- Category/Genre filter chips -->
@@ -434,10 +452,16 @@
         <div class="player-song-details">
           <div class="player-song-title" id="player-title">Song Title</div>
           <div class="player-song-artist" id="player-artist">Artist Name</div>
-          <a href="#" id="player-yt-link" target="_blank" class="player-yt-link" title="Open directly in YouTube if video embedding is restricted by labels">
-            <i data-lucide="youtube" style="width: 12px; height: 12px; margin-right: 4px; display: inline-block;"></i>
-            <span>Open in YouTube</span>
-          </a>
+          <div class="player-external-links" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px;">
+            <a href="#" id="player-yt-link" target="_blank" class="player-yt-link" title="Open directly on YouTube">
+              <i data-lucide="youtube" style="width: 11px; height: 11px; margin-right: 3px; display: inline-block; vertical-align: middle;"></i>
+              <span>YouTube</span>
+            </a>
+            <a href="#" id="player-spotify-link" target="_blank" class="player-spotify-link" title="Open on Spotify">
+              <i data-lucide="external-link" style="width: 11px; height: 11px; margin-right: 3px; display: inline-block; vertical-align: middle;"></i>
+              <span>Spotify</span>
+            </a>
+          </div>
         </div>
       </div>
       
