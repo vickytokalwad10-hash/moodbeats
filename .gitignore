@@ -1,0 +1,8 @@
+# Logs and temp files
+*.log
+.system_generated/
+.gemini/
+.idea/
+.vscode/
+Thumbs.db
+Desktop.ini
