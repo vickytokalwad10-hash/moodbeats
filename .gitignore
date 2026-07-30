@@ -1,8 +1,30 @@
-# Logs and temp files
-*.log
-.system_generated/
-.gemini/
-.idea/
-.vscode/
+# Node
+node_modules/
+npm-debug.log*
+
+# Build outputs
+www/
+android/app/build/
+android/.gradle/
+android/build/
+
+# APK files (large binaries — keep source, not builds)
+*.apk
+
+# Environment / secrets
+.env
+.env.local
+
+# OS files
+.DS_Store
 Thumbs.db
-Desktop.ini
+
+# Logs
+*.log
+
+# Editor
+.vscode/
+.idea/
+
+# Capacitor generated
+android/app/src/main/assets/public/

@@ -1,0 +1,10 @@
+{
+  "appId": "com.moodbeats.app",
+  "appName": "MoodBeats",
+  "webDir": "www",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

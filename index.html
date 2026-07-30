@@ -5,10 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MoodBeats — Let your mood pick the music</title>
   
-  <!-- Google Fonts -->
+  <!-- Page Visibility Override for Background Playback -->
+  <script>
+    (function() {
+      try {
+        Object.defineProperty(document, 'hidden', { value: false, writable: false });
+        Object.defineProperty(document, 'visibilityState', { value: 'visible', writable: false });
+        Object.defineProperty(document, 'webkitHidden', { value: false, writable: false });
+      } catch (e) {}
+      
+      const preventDefaultVisibility = (e) => {
+        if (e && e.type === 'visibilitychange') {
+          e.stopImmediatePropagation();
+        }
+      };
+      
+      window.addEventListener('visibilitychange', preventDefaultVisibility, true);
+      document.addEventListener('visibilitychange', preventDefaultVisibility, true);
+      document.addEventListener('webkitvisibilitychange', preventDefaultVisibility, true);
+    })();
+  </script>
+
+  <!-- Google Fonts: Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- CDN Preconnects for faster resource loading -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
@@ -20,8 +41,16 @@
   <!-- Stylesheet -->
   <link rel="stylesheet" href="styles.css">
   
-  <!-- face-api.js CDN -->
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <!-- PWA Manifest & Mobile Standalone Styling -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MoodBeats">
+  <link rel="apple-touch-icon" href="icon.png">
+  <meta name="theme-color" content="#a855f7">
+  
+  <!-- face-api.js CDN — must be async (not defer) so it loads before app.js needs it -->
+  <script async src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js" id="faceapi-script"></script>
   
   <!-- YouTube IFrame Player API -->
   <script src="https://www.youtube.com/iframe_api"></script>
@@ -29,7 +58,7 @@
   <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
-<body class="dark-theme">
+<body>
   <!-- Dynamic background blobs -->
   <div class="blob-container">
     <div class="blob blob-1"></div>
@@ -56,37 +85,48 @@
     <!-- Main Content Area -->
     <main class="main-content">
       
-      <!-- 1. Landing View -->
+      <!-- 1. Landing / Home View -->
       <section id="view-landing" class="view active">
-        <div class="hero-section">
-          <p class="tagline">Let your mood pick the music</p>
-          <p class="sub-tagline">How would you like to express your vibes today?</p>
+        <!-- Greeting Header -->
+        <div class="home-greeting">
+          <h1 id="home-greeting-text">Good day 👋</h1>
+          <p>What's your vibe today? Let's find the perfect soundtrack.</p>
         </div>
-        
+
+        <!-- Detect Your Mood Section -->
+        <div class="section-heading">Detect Your Mood</div>
         <div class="mode-selectors">
           <div class="mode-card" id="mode-text-btn">
             <div class="mode-icon-wrapper">
               <i data-lucide="message-square" class="mode-icon"></i>
             </div>
             <h3>Type your mood</h3>
-            <p>Tell us how you feel in a few sentences</p>
+            <p>Describe how you feel in words</p>
             <span class="mode-arrow"><i data-lucide="arrow-right"></i></span>
           </div>
 
           <div class="mode-card" id="mode-webcam-btn">
             <div class="mode-icon-wrapper">
-              <i data-lucide="camera" class="mode-icon"></i>
+              <i data-lucide="scan-face" class="mode-icon"></i>
             </div>
             <h3>Scan your face</h3>
-            <p>Use your camera to detect your emotions</p>
+            <p>Camera reads your emotion live</p>
             <span class="mode-arrow"><i data-lucide="arrow-right"></i></span>
           </div>
         </div>
 
-        <!-- Small quick stats/preview -->
+        <!-- Recently Played Section (populated by JS) -->
+        <div class="recently-played-section" id="home-recently-section" style="display:none;">
+          <div class="section-heading">Recently Played</div>
+          <div class="h-scroll-row" id="home-recently-row">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- AI Info Banner -->
         <div class="quick-info-box glass">
           <i data-lucide="sparkles" class="text-accent animate-spin-slow"></i>
-          <span>MoodBeats uses AI to map your expressions or thoughts to tailored acoustic vibes.</span>
+          <span>MoodBeats AI maps your emotions to perfect acoustic signatures — just like Spotify Discover, but powered by your mood.</span>
         </div>
       </section>
 
@@ -153,9 +193,9 @@
               <!-- Fallback View (denied/no camera) -->
               <div class="camera-overlay-state" id="camera-fallback-overlay">
                 <i data-lucide="camera-off" class="fallback-icon"></i>
-                <h3>Webcam Access Blocked</h3>
-                <p>We need camera permission to scan your face. Please allow camera access in your browser settings and try again.</p>
-                <button class="btn btn-secondary btn-sm" id="btn-retry-camera">Retry Permission</button>
+                <h3 id="camera-error-title">Webcam Access Blocked</h3>
+                <p id="camera-error-msg">We need camera permission to scan your face. Please allow camera access and try again.</p>
+                <button class="btn btn-primary btn-sm" id="btn-retry-camera" style="margin-top:8px;">Retry</button>
               </div>
             </div>
           </div>
@@ -344,8 +384,8 @@
         <div class="settings-list glass">
           <div class="settings-item">
             <div class="settings-item-info">
-              <h3>Light Theme</h3>
-              <p>Toggle light theme for brighter environments</p>
+              <h3>Dark Theme</h3>
+              <p>Toggle dark mode for low-light environments</p>
             </div>
             <label class="switch">
               <input type="checkbox" id="settings-theme-switch">
@@ -373,6 +413,17 @@
               <input type="checkbox" id="settings-simulate-cam">
               <span class="slider round"></span>
             </label>
+          </div>
+
+          <div class="settings-item" style="flex-direction: column; align-items: stretch; gap: 8px;">
+            <div class="settings-item-info">
+              <h3>Backend Server URL</h3>
+              <p>Active local IP or Serveo tunnel address (for APK WebView integration)</p>
+            </div>
+            <div style="display: flex; gap: 8px; width: 100%;">
+              <input type="text" id="settings-server-url" class="search-input" style="flex: 1; margin: 0; padding: 8px 12px; font-size: 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: #fff; border-radius: 8px;" placeholder="https://..." />
+              <button id="btn-save-server-url" class="btn btn-primary" style="padding: 0 16px; height: auto;">Save</button>
+            </div>
           </div>
         </div>
 
@@ -453,10 +504,10 @@
 
     </main>
 
-    <!-- Floating Music Player Bar -->
-    <div class="music-player-bar glass" id="player-bar" style="display: none;">
+    <!-- Mini Music Player Bar -->
+    <div class="music-player-bar" id="player-bar" style="display: none;">
 
-      <!-- Timeline Progress Row -->
+      <!-- Timeline Stripe (top of bar, always) -->
       <div class="player-timeline-row">
         <span class="player-time" id="player-time-current">0:00</span>
         <div class="player-progress-track" id="player-progress-track">
@@ -466,78 +517,170 @@
         <span class="player-time" id="player-time-total">0:00</span>
       </div>
 
-      <!-- Main Controls Row -->
-      <div class="player-controls-row">
-        <div class="player-left">
+      <!-- Main Controls Row (tappable to expand on mobile) -->
+      <div class="player-controls-row" id="player-tap-expand">
+
+        <!-- Left: Art + Info (tap to open Now Playing) -->
+        <div class="player-left" id="player-left-tap">
           <div class="player-art" id="player-art">
-            <i data-lucide="music" class="song-art-icon" style="width: 18px; height: 18px;"></i>
+            <i data-lucide="music" class="song-art-icon"></i>
+            <!-- EQ animation bars while playing -->
+            <div class="player-art-eq">
+              <div class="eq-bar"></div>
+              <div class="eq-bar"></div>
+              <div class="eq-bar"></div>
+            </div>
           </div>
           <div class="player-song-details">
             <div class="player-song-title" id="player-title">Song Title</div>
             <div class="player-song-artist" id="player-artist">Artist Name</div>
-            <div class="player-external-links" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 2px;">
-              <a href="#" id="player-yt-link" target="_blank" class="player-yt-link" title="Open on YouTube">
-                <i data-lucide="youtube" style="width: 11px; height: 11px; margin-right: 3px; display: inline-block; vertical-align: middle;"></i>
-                <span>YouTube</span>
-              </a>
-              <a href="#" id="player-spotify-link" target="_blank" class="player-spotify-link" title="Open on Spotify">
-                <i data-lucide="external-link" style="width: 11px; height: 11px; margin-right: 3px; display: inline-block; vertical-align: middle;"></i>
-                <span>Spotify</span>
-              </a>
-            </div>
           </div>
         </div>
 
-        <div class="player-center" style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-          <div style="display: flex; align-items: center; gap: 15px;">
-            <button class="player-btn" id="player-prev" title="Previous Track">
+        <!-- Center: desktop-only controls -->
+        <div class="player-center">
+          <div style="display:flex;align-items:center;gap:14px;">
+            <button class="player-btn" id="player-prev" title="Previous">
               <i data-lucide="skip-back"></i>
             </button>
             <button class="player-btn btn-play-main" id="player-play" title="Play/Pause">
               <i data-lucide="play" id="player-play-icon"></i>
             </button>
-            <button class="player-btn" id="player-next" title="Next Track">
+            <button class="player-btn" id="player-next" title="Next">
               <i data-lucide="skip-forward"></i>
             </button>
           </div>
-          <span id="player-mobile-hint" style="display: none; font-size: 9px; color: var(--text-muted); text-align: center; font-weight: 600;">
-            Mobile: Tap the TV icon and click video if blocked.
-          </span>
+          <span id="player-mobile-hint">Tap album art to expand</span>
         </div>
 
+        <!-- Right: mobile play controls + desktop extras -->
         <div class="player-right">
-          <!-- Volume Control -->
           <div class="player-volume-group">
             <button class="player-btn player-btn-sm" id="player-mute" title="Mute/Unmute">
               <i data-lucide="volume-2" id="player-volume-icon"></i>
             </button>
-            <input type="range" class="player-volume-slider" id="player-volume-slider"
-                   min="0" max="100" value="80" title="Volume">
+            <input type="range" class="player-volume-slider" id="player-volume-slider" min="0" max="100" value="80">
           </div>
-          <button class="player-btn" id="player-toggle-video" title="Toggle Video Player">
-            <i data-lucide="tv"></i>
+          <!-- Mobile: play/pause button (visible on mobile) -->
+          <button class="player-btn btn-play-main" id="player-play-mobile" title="Play/Pause" style="display:none;">
+            <i data-lucide="play" id="player-play-icon-mobile"></i>
           </button>
-          <button class="player-btn" id="player-close" title="Close Player">
+          <button class="player-btn" id="player-next-mobile" title="Next" style="display:none;">
+            <i data-lucide="skip-forward"></i>
+          </button>
+          <button class="player-btn" id="player-close" title="Close">
             <i data-lucide="x"></i>
           </button>
         </div>
       </div>
 
-      <!-- Recently Played Bar -->
-      <div id="recently-played-bar" class="recently-played-bar" style="display: none;">
+      <!-- Hidden: links (used by NP panel) -->
+      <a href="#" id="player-yt-link" target="_blank" style="display:none;"></a>
+      <a href="#" id="player-spotify-link" target="_blank" style="display:none;"></a>
+
+      <!-- Recently Played (hidden in mini player) -->
+      <div id="recently-played-bar" class="recently-played-bar" style="display:none;">
         <span class="recently-label">Recent:</span>
       </div>
 
-      <!-- Video Drawer for YouTube Embed -->
-      <div class="player-video-drawer" id="player-video-drawer">
-        <div class="video-drawer-header">
-          <span>Direct Player View</span>
-          <button id="btn-minimize-video"><i data-lucide="chevron-down"></i></button>
-        </div>
-        <div class="video-iframe-wrapper">
-          <div id="youtube-player-placeholder"></div>
+      <!-- Invisible container for YouTube IFrame API -->
+      <div id="youtube-player-container" style="display: none !important; width: 0; height: 0; opacity: 0; visibility: hidden; pointer-events: none;">
+        <div id="youtube-player-placeholder"></div>
+      </div>
+    </div>
+
+    <!-- ================================================
+         NOW PLAYING FULL-SCREEN PANEL
+         ================================================ -->
+    <div class="now-playing-panel" id="now-playing-panel">
+
+      <!-- Header row -->
+      <div class="np-header">
+        <button class="np-close" id="np-close" title="Collapse">
+          <i data-lucide="chevron-down"></i>
+        </button>
+        <span class="np-label">Now Playing</span>
+        <button class="np-more" id="np-more" title="More options">
+          <i data-lucide="more-horizontal"></i>
+        </button>
+      </div>
+
+      <!-- Large album art -->
+      <div class="np-art-wrapper">
+        <div class="np-art" id="np-art">
+          <i data-lucide="music-4" class="np-art-icon"></i>
         </div>
       </div>
+
+      <!-- Song info + like -->
+      <div class="np-info">
+        <div class="np-title-row">
+          <div style="flex:1;min-width:0;">
+            <div class="np-title" id="np-title">Song Title</div>
+            <div class="np-artist" id="np-artist">Artist Name</div>
+          </div>
+          <button class="np-like" id="np-like" title="Like">
+            <i data-lucide="heart"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Scrubber -->
+      <div class="np-scrubber-wrapper">
+        <div class="np-progress-track" id="np-progress-track">
+          <div class="np-progress-fill" id="np-progress-fill"></div>
+          <div class="np-progress-thumb" id="np-progress-thumb"></div>
+        </div>
+        <div class="np-times">
+          <span id="np-time-current">0:00</span>
+          <span id="np-time-total">0:00</span>
+        </div>
+      </div>
+
+      <!-- Main playback controls -->
+      <div class="np-controls">
+        <button class="np-btn" id="np-shuffle" title="Shuffle">
+          <i data-lucide="shuffle"></i>
+        </button>
+        <button class="np-btn" id="np-prev" title="Previous">
+          <i data-lucide="skip-back"></i>
+        </button>
+        <button class="np-btn np-btn-play" id="np-play" title="Play/Pause">
+          <i data-lucide="play" id="np-play-icon"></i>
+        </button>
+        <button class="np-btn" id="np-next" title="Next">
+          <i data-lucide="skip-forward"></i>
+        </button>
+        <button class="np-btn" id="np-repeat" title="Repeat">
+          <i data-lucide="repeat"></i>
+        </button>
+      </div>
+
+      <!-- Volume + Video toggle -->
+      <div class="np-secondary-controls">
+        <button class="np-btn-sm" id="np-mute" title="Mute">
+          <i data-lucide="volume-2" id="np-volume-icon"></i>
+        </button>
+        <input type="range" class="np-volume-slider" id="np-volume-slider" min="0" max="100" value="80">
+      </div>
+
+      <!-- Video section (shown when TV is tapped) -->
+      <div class="np-video-section" id="np-video-section" style="display:none;">
+        <!-- YouTube player moves here when NP is open -->
+      </div>
+
+      <!-- External links -->
+      <div class="np-external-links">
+        <a href="#" id="np-yt-link" target="_blank" class="np-ext-btn">
+          <i data-lucide="youtube"></i>
+          <span>YouTube</span>
+        </a>
+        <a href="#" id="np-spotify-link" target="_blank" class="np-ext-btn">
+          <i data-lucide="external-link"></i>
+          <span>Open Spotify</span>
+        </a>
+      </div>
+
     </div>
 
     <!-- Bottom Navigation Bar -->
@@ -551,11 +694,11 @@
         <span>Search</span>
       </button>
       <button class="nav-item" data-target="view-history" id="nav-history">
-        <i data-lucide="history"></i>
-        <span>History</span>
+        <i data-lucide="library"></i>
+        <span>Library</span>
       </button>
       <button class="nav-item" data-target="view-settings" id="nav-settings">
-        <i data-lucide="settings"></i>
+        <i data-lucide="settings-2"></i>
         <span>Settings</span>
       </button>
     </nav>

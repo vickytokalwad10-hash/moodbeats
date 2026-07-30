@@ -3,6 +3,116 @@
 // ==========================================
 // 1. Playlists Dataset with Direct Video IDs
 // ==========================================
+// Indian / Hindi-only playlists — shown after face scan or text mood detection
+const INDIAN_PLAYLISTS = {
+  Happy: [
+    { title: "Dil Chahta Hai", artist: "Shankar-Ehsaan-Loy", genre: "Bollywood Pop", videoId: "p092kMhCaw8" },
+    { title: "Kar Gayi Chull", artist: "Badshah & Fazilpuria", genre: "Bollywood Dance", videoId: "VdGGK13LhQc" },
+    { title: "Badtameez Dil", artist: "Benny Dayal", genre: "Bollywood Pop", videoId: "II2EO3Ovv9M" },
+    { title: "Gallan Goodiyaan", artist: "Shankar-Ehsaan-Loy", genre: "Bollywood Dance", videoId: "c8rHSFBHNi0" },
+    { title: "London Thumakda", artist: "Labh Janjua & Sonu Kakkar", genre: "Bollywood Dance", videoId: "gadgN4jSkks" },
+    { title: "Kala Chashma", artist: "Badshah & Aastha Gill", genre: "Bollywood Dance", videoId: "cOFI7Mww0t4" },
+    { title: "Radha", artist: "Jyoti Nooran", genre: "Bollywood Pop", videoId: "R0GWqJ7VtAo" },
+    { title: "Subah Hone Na De", artist: "Mika Singh", genre: "Bollywood Dance", videoId: "g-ORDJoCuMg" },
+    { title: "Nagada Sang Dhol", artist: "Shreya Ghoshal & Osman Mir", genre: "Bollywood Folk", videoId: "Hq5QSMmWiLo" },
+    { title: "Ghagra", artist: "Vishal Shekhar", genre: "Bollywood Dance", videoId: "bknVVHMPiTE" },
+    { title: "Tum Hi Aana", artist: "Jubin Nautiyal", genre: "Bollywood Pop", videoId: "4kYyV1UIlU4" },
+    { title: "Balam Pichkari", artist: "Vishal Dadlani & Shalmali Kholgade", genre: "Bollywood Holi", videoId: "r4V8hnV5P6Y" },
+    { title: "Dilliwali Girlfriend", artist: "Arijit Singh & Sunidhi Chauhan", genre: "Bollywood Dance", videoId: "NagNAM2DEJA" }
+  ],
+  Sad: [
+    { title: "Channa Mereya", artist: "Arijit Singh", genre: "Bollywood Sad", videoId: "bzSTpdcs-gQ" },
+    { title: "Agar Tum Saath Ho", artist: "Alka Yagnik & Arijit Singh", genre: "Bollywood Sad", videoId: "sK7riqg2mr4" },
+    { title: "Kabira", artist: "Tochi Raina & Rekha Bhardwaj", genre: "Bollywood Folk", videoId: "jHTjV28pY5Y" },
+    { title: "Tujhe Kitna Chahne Lage", artist: "Arijit Singh", genre: "Bollywood Sad", videoId: "K0ibBEumOqk" },
+    { title: "Phir Le Aya Dil", artist: "Arijit Singh", genre: "Bollywood Sad", videoId: "7e27J4-a6To" },
+    { title: "Alvida", artist: "K.K.", genre: "Bollywood Sad", videoId: "sRDJ-KpAEbs" },
+    { title: "Teri Mitti", artist: "B Praak", genre: "Bollywood Patriotic Sad", videoId: "X96MELbg82w" },
+    { title: "Woh Lamhe", artist: "Atif Aslam", genre: "Bollywood Soft Rock", videoId: "XiG4Tj6a5wM" },
+    { title: "Khairiyat", artist: "Arijit Singh", genre: "Bollywood Sad", videoId: "vX3MAnO5PK4" },
+    { title: "Dil Diyan Gallan", artist: "Atif Aslam", genre: "Bollywood Romantic Sad", videoId: "3PLGxKn-YG4" },
+    { title: "Judaai", artist: "Rekha Bhardwaj", genre: "Bollywood Sufi Sad", videoId: "z1QTH6MqpiI" },
+    { title: "Hamari Adhuri Kahani", artist: "Arijit Singh", genre: "Bollywood Sad", videoId: "f1RA_BNzY4g" },
+    { title: "Jeena Jeena", artist: "Atif Aslam", genre: "Bollywood Soft", videoId: "d1VJPwVRmro" }
+  ],
+  Energetic: [
+    { title: "Malhari", artist: "Vishal Dadlani", genre: "Bollywood Energetic", videoId: "o_wHkF618Xk" },
+    { title: "Jai Ho", artist: "A.R. Rahman", genre: "Bollywood Dance", videoId: "kYn7F4-2eEo" },
+    { title: "Zinda", artist: "Siddharth Mahadevan", genre: "Bollywood Rock", videoId: "K425_tI_kac" },
+    { title: "Aarambh Hai Prachand", artist: "Piyush Mishra", genre: "Bollywood Folk Rock", videoId: "rZ3jYJio-q8" },
+    { title: "Sultan", artist: "Vishal-Shekhar", genre: "Bollywood Energetic", videoId: "rfM7KbgAERw" },
+    { title: "Sher Khul Gaye", artist: "Vishal-Shekhar & Benny Dayal", genre: "Bollywood Energetic", videoId: "jHzPKhiAXGw" },
+    { title: "Dhoom Machale", artist: "Sunidhi Chauhan", genre: "Bollywood Dance", videoId: "aMIU_7AqnU0" },
+    { title: "Tattad Tattad", artist: "Aditya Narayan", genre: "Bollywood Folk Dance", videoId: "D0w0W6iS-cA" },
+    { title: "Ang Laga De", artist: "Rahat Fateh Ali Khan", genre: "Bollywood Sufi Rock", videoId: "mCuFDHdJaRI" },
+    { title: "Ghungroo", artist: "Arijit Singh & Shilpa Rao", genre: "Bollywood Dance", videoId: "qFbWLSp8XpY" },
+    { title: "Bhaag Milkha Bhaag", artist: "Daler Mehndi", genre: "Bollywood Rock", videoId: "U5QKROA9B4c" },
+    { title: "Seeti Maar", artist: "Yo Yo Honey Singh", genre: "Bollywood Dance", videoId: "NlomWj_KFj8" },
+    { title: "Jee Karda", artist: "Badshah & Aastha Gill", genre: "Bollywood Dance", videoId: "PaWYI2cPh_s" }
+  ],
+  Relaxed: [
+    { title: "Kun Faya Kun", artist: "A.R. Rahman & Javed Ali & Mohit Chauhan", genre: "Sufi Devotional", videoId: "T94PHkuyd8c" },
+    { title: "Iktara", artist: "Amit Trivedi & Kavita Seth", genre: "Bollywood Sufi", videoId: "Oe9pEEKkMnA" },
+    { title: "Tum Se Hi", artist: "Mohit Chauhan", genre: "Bollywood Relaxed", videoId: "mt9xg0mmt28" },
+    { title: "Ae Dil Hai Mushkil", artist: "Arijit Singh", genre: "Bollywood Soft", videoId: "6FURuKBTAqM" },
+    { title: "Safar", artist: "Arijit Singh", genre: "Bollywood Soft", videoId: "PxE5nEaT9j8" },
+    { title: "Moh Moh Ke Dhaage", artist: "Papon & Monali Thakur", genre: "Bollywood Folk Soft", videoId: "6y3MhIgYNaY" },
+    { title: "Tu Jaane Na", artist: "Atif Aslam", genre: "Bollywood Soft", videoId: "zq9NWUB6c2E" },
+    { title: "Tere Bina", artist: "A.R. Rahman & Chinmayi", genre: "Bollywood Sufi", videoId: "OFHKV1gT5dM" },
+    { title: "O Re Piya", artist: "Rahat Fateh Ali Khan", genre: "Bollywood Sufi", videoId: "1IbPOXk2mYk" },
+    { title: "Lag Ja Gale", artist: "Lata Mangeshkar", genre: "Bollywood Classic", videoId: "0U4KKuXbQno" },
+    { title: "Kabhi Alvida Naa Kehna", artist: "Sonu Nigam", genre: "Bollywood Soft", videoId: "lLqMlN4gMnU" },
+    { title: "Zara Si Dil Mein", artist: "K.K.", genre: "Bollywood Soft", videoId: "n_K5hy7JOKk" },
+    { title: "Piya Aaye Na", artist: "Arijit Singh", genre: "Bollywood Sufi Soft", videoId: "gI5OIe5KcGA" }
+  ],
+  Angry: [
+    { title: "Sadda Haq", artist: "Mohit Chauhan", genre: "Bollywood Rock", videoId: "p9DQINKZxWE" },
+    { title: "Bhaag D.K. Bose", artist: "Ram Sampath", genre: "Bollywood Punk Rock", videoId: "u8m81LdFkE4" },
+    { title: "Aarambh Hai Prachand", artist: "Piyush Mishra", genre: "Bollywood Folk Rock", videoId: "rZ3jYJio-q8" },
+    { title: "Toota Jo Kabhi Tara", artist: "Atif Aslam & KK", genre: "Bollywood Rock", videoId: "H1N_YuIsNPE" },
+    { title: "Rock On", artist: "Farhan Akhtar", genre: "Bollywood Rock", videoId: "jQE2IgMHzVM" },
+    { title: "Khoon Chala", artist: "Mohit Chauhan", genre: "Bollywood Sufi Rock", videoId: "k_3BRb3Q1ro" },
+    { title: "Zinda Hoon Main", artist: "Jeet Ganguly", genre: "Bollywood Rock", videoId: "Nj3QqbM5L4Y" },
+    { title: "Rang De Basanti", artist: "Daler Mehndi & Naresh Kamath", genre: "Bollywood Folk Rock", videoId: "H-Y2JuYl3OM" },
+    { title: "Hud Hud Dabangg", artist: "Sonu Sood & Vinod Rathod", genre: "Bollywood Dance", videoId: "NlomWj_KFj8" },
+    { title: "Dooba Dooba", artist: "Silk Route", genre: "Bollywood Rock", videoId: "pYFaVbXgPOc" },
+    { title: "Ye Jo Des Hai Tera", artist: "A.R. Rahman", genre: "Bollywood Emotional Rock", videoId: "P9k2KIXhzV0" },
+    { title: "Chhod De Saari Duniya", artist: "Lucky Ali", genre: "Bollywood Soft Rock", videoId: "HNR_CoolY-A" },
+    { title: "Gulabi Aankhen", artist: "Mohammed Rafi", genre: "Bollywood Classic Rock", videoId: "0Tx-C-kgMvU" }
+  ],
+  Romantic: [
+    { title: "Tum Hi Ho", artist: "Arijit Singh", genre: "Bollywood Romantic", videoId: "H2fA_eMRjEU" },
+    { title: "Kesariya", artist: "Arijit Singh", genre: "Bollywood Romantic", videoId: "h7KstC9G-4M" },
+    { title: "Pehla Nasha", artist: "Udit Narayan & Sadhana Sargam", genre: "Bollywood Classic", videoId: "wLgV89-mH54" },
+    { title: "Tere Sang Yaara", artist: "Atif Aslam", genre: "Bollywood Romantic", videoId: "8JX7H9_qhpo" },
+    { title: "Teri Deewani", artist: "Kailash Kher", genre: "Bollywood Sufi Romantic", videoId: "Vb4vBqCOgp8" },
+    { title: "Raabta", artist: "Arijit Singh", genre: "Bollywood Romantic", videoId: "ioSiom4H3v4" },
+    { title: "Hawayein", artist: "Arijit Singh", genre: "Bollywood Romantic", videoId: "cGkHKYTSybA" },
+    { title: "Mere Naam Tu", artist: "Abhay Jodhpurkar", genre: "Bollywood Romantic", videoId: "9fv9Ts8NVb4" },
+    { title: "Gerua", artist: "Arijit Singh & Antara Mitra", genre: "Bollywood Romantic", videoId: "oGpBZbf9U14" },
+    { title: "Main Agar Kahoon", artist: "Sonu Nigam & Shreya Ghoshal", genre: "Bollywood Romantic Classic", videoId: "Ro3O2mYbvEo" },
+    { title: "Pehli Nazar Mein", artist: "Atif Aslam", genre: "Bollywood Romantic", videoId: "LN4GLL20SiM" },
+    { title: "Teri Meri Prem Kahani", artist: "Rahat Fateh Ali Khan", genre: "Bollywood Romantic", videoId: "Jm9-MCsWbH0" },
+    { title: "Saibo", artist: "Sonu Nigam & Shreya Ghoshal", genre: "Bollywood Sufi Romantic", videoId: "DyQUQmCXSv8" }
+  ],
+  "Focused/Stressed": [
+    { title: "Khwaja Mere Khwaja", artist: "A.R. Rahman", genre: "Sufi Instrumental", videoId: "r5Gcx_sS_f4" },
+    { title: "Yun Hi Chala Chal Rahi", artist: "Udit Narayan & Hariharan", genre: "Bollywood Inspirational", videoId: "aW0V2bH-iN0" },
+    { title: "Zindagi Do Pal Ki", artist: "K.K.", genre: "Bollywood Melodic", videoId: "L0w55WJ5o_Q" },
+    { title: "Mann", artist: "Aamir Khan", genre: "Bollywood Soft", videoId: "0AQd1nTYN-I" },
+    { title: "Ilahi", artist: "Arijit Singh", genre: "Bollywood Soft Inspirational", videoId: "OFHKV1gT5dM" },
+    { title: "Tere Bina", artist: "A.R. Rahman", genre: "Bollywood Sufi", videoId: "OFHKV1gT5dM" },
+    { title: "Sooraj Dooba Hai", artist: "Arijit Singh & Aditi Singh Sharma", genre: "Bollywood Melodic", videoId: "v7Z7kSfMEBs" },
+    { title: "Sunn Raha Hai Na Tu", artist: "Ankit Tiwari", genre: "Bollywood Soft", videoId: "CaKMQfF8dYU" },
+    { title: "Agar Mujhse Mohabbat Hai", artist: "Atif Aslam", genre: "Bollywood Soft", videoId: "a2G3kKOK7XY" },
+    { title: "Dil Dhadakne Do", artist: "Priyanka Chopra & Farhan Akhtar", genre: "Bollywood Feel Good", videoId: "KPdxGBTyDMk" },
+    { title: "Jeene Laga Hoon", artist: "Atif Aslam & Shreya Ghoshal", genre: "Bollywood Soft Romantic", videoId: "4m4bHR5oiBI" },
+    { title: "Chahun Main Ya Naa", artist: "Arijit Singh & Palak Muchhal", genre: "Bollywood Soft", videoId: "VqPsAjbGjy4" },
+    { title: "Mera Naam Kya Hai", artist: "Ash King & Suzanne D'Mello", genre: "Bollywood Chill", videoId: "2JMUj3RmHfA" }
+  ]
+};
+
+// Global (mixed) playlists — used in the Search & Browse view
 const PLAYLISTS = {
   Happy: [
     { title: "Happy", artist: "Pharrell Williams", genre: "Pop", videoId: "y6Sxv-sUYtM" },
@@ -141,6 +251,7 @@ const state = {
   isVideoOpen: false,
   autoplayPollTimer: null,   // Polls YouTube for video-ended state
   recentlyPlayed: [],        // Tracks last 5 played songs
+  recentlyPlayedIds: [],     // Tracks last 5 song videoIds to prevent repeats
   
   // Search parameters
   searchMode: 'local',
@@ -321,7 +432,7 @@ function navigateTo(viewId) {
       console.log(`Laptop polling pairing session: ${state.sessionId}`);
       state.syncPollInterval = setInterval(async () => {
         try {
-          const response = await fetch(`/api/sync?session=${state.sessionId}`);
+          const response = await fetch(`${getServerUrl()}/api/sync?session=${state.sessionId}`);
           if (response.ok) {
             const data = await response.json();
             if (data.active) {
@@ -363,64 +474,90 @@ function navigateTo(viewId) {
 const MODEL_URL_LOCAL = './models';
 const MODEL_URL_CDN = 'https://justadudewhohacks.github.io/face-api.js/models/';
 
+// ─────────────────────────────────────────────────────────────
+// Wait for face-api.js to fully load from CDN (handles async race)
+// ─────────────────────────────────────────────────────────────
+function waitForFaceApi(timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    if (typeof faceapi !== 'undefined' && faceapi.nets) {
+      resolve();
+      return;
+    }
+    const start = Date.now();
+    const poll = setInterval(() => {
+      if (typeof faceapi !== 'undefined' && faceapi.nets) {
+        clearInterval(poll);
+        resolve();
+      } else if (Date.now() - start > timeoutMs) {
+        clearInterval(poll);
+        reject(new Error('face-api.js failed to load within timeout'));
+      }
+    }, 100);
+  });
+}
+
 async function loadFaceModels() {
   if (state.faceModelsLoaded) return true;
-  
-  const statusBox = document.getElementById('weights-status-box');
-  const progressFill = document.getElementById('weights-progress-fill');
-  const progressText = document.getElementById('weights-progress-text');
-  
-  statusBox.style.display = 'flex';
-  
-  const sourceSelect = document.getElementById('settings-model-source');
-  const selectedSource = sourceSelect ? sourceSelect.value : 'local';
-  const modelUrl = selectedSource === 'local' ? MODEL_URL_LOCAL : MODEL_URL_CDN;
-  
-  console.log(`Loading weights from source: ${selectedSource} URL: ${modelUrl}`);
-  
+
+  const isPhone = state.isPhoneController;
+  const statusBox    = document.getElementById(isPhone ? 'phone-weights-status-box' : 'weights-status-box');
+  const progressFill = document.getElementById(isPhone ? 'phone-weights-progress-fill' : 'weights-progress-fill');
+  const progressText = document.getElementById(isPhone ? 'phone-weights-progress-text' : 'weights-progress-text');
+
+  if (statusBox) statusBox.style.display = 'flex';
+
+  // ── Wait for face-api.js CDN script to finish loading ──
   try {
-    progressText.innerText = "Loading Face Detector (30%)...";
-    progressFill.style.width = "30%";
-    await faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl);
-    
-    progressText.innerText = "Loading Landmark Predictor (60%)...";
-    progressFill.style.width = "60%";
-    await faceapi.nets.faceLandmark68Net.loadFromUri(modelUrl);
-    
-    progressText.innerText = "Loading Emotion Classifier (100%)...";
-    progressFill.style.width = "100%";
-    await faceapi.nets.faceExpressionNet.loadFromUri(modelUrl);
-    
+    if (progressText) progressText.innerText = 'Waiting for face engine library...';
+    await waitForFaceApi(12000);
+  } catch (waitErr) {
+    console.error('[MoodBeats] face-api.js did not load:', waitErr);
+    if (progressText) progressText.innerText = 'Critical: Face library failed to load. Check internet.';
+    return false;
+  }
+
+  const sourceSelect   = document.getElementById('settings-model-source');
+  const selectedSource = sourceSelect ? sourceSelect.value : 'local';
+  const modelUrl       = selectedSource === 'local' ? MODEL_URL_LOCAL : MODEL_URL_CDN;
+
+  console.log(`[MoodBeats] Loading face model weights from: ${modelUrl}`);
+
+  const tryLoad = async (url) => {
+    if (progressText) progressText.innerText = 'Loading face detector (30%)...';
+    if (progressFill) progressFill.style.width = '30%';
+    await faceapi.nets.tinyFaceDetector.loadFromUri(url);
+
+    if (progressText) progressText.innerText = 'Loading landmark predictor (60%)...';
+    if (progressFill) progressFill.style.width = '60%';
+    await faceapi.nets.faceLandmark68Net.loadFromUri(url);
+
+    if (progressText) progressText.innerText = 'Loading emotion classifier (100%)...';
+    if (progressFill) progressFill.style.width = '100%';
+    await faceapi.nets.faceExpressionNet.loadFromUri(url);
+  };
+
+  try {
+    await tryLoad(modelUrl);
     state.faceModelsLoaded = true;
-    progressText.innerText = "Expression engines locked & loaded!";
-    setTimeout(() => {
-      statusBox.style.display = 'none';
-    }, 1500);
+    if (progressText) progressText.innerText = 'Expression engine ready!';
+    setTimeout(() => { if (statusBox) statusBox.style.display = 'none'; }, 1200);
     return true;
-  } catch (error) {
-    console.error("Failed to load models:", error);
+  } catch (err) {
+    console.error('[MoodBeats] Model load failed:', err);
     if (selectedSource === 'local') {
-      console.warn("Local weights load failed, trying CDN fallback...");
-      progressText.innerText = "Local models failed. Attempting CDN failover...";
       try {
-        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL_CDN);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL_CDN);
-        await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL_CDN);
+        if (progressText) progressText.innerText = 'Local models failed — trying CDN fallback...';
+        await tryLoad(MODEL_URL_CDN);
         state.faceModelsLoaded = true;
-        progressText.innerText = "CDN Model Weights Loaded Successfully!";
-        setTimeout(() => {
-          statusBox.style.display = 'none';
-        }, 1500);
+        if (progressText) progressText.innerText = 'CDN models loaded!';
+        setTimeout(() => { if (statusBox) statusBox.style.display = 'none'; }, 1200);
         return true;
-      } catch (cdnError) {
-        console.error("CDN weights also failed to load:", cdnError);
-        progressText.innerText = "Critical: Face detection models failed to load.";
-        return false;
+      } catch (cdnErr) {
+        console.error('[MoodBeats] CDN models also failed:', cdnErr);
       }
-    } else {
-      progressText.innerText = "Critical: Face detection models failed to load.";
-      return false;
     }
+    if (progressText) progressText.innerText = 'Critical: Face detection models failed to load.';
+    return false;
   }
 }
 
@@ -450,69 +587,160 @@ async function loadCameraDevices() {
 }
 
 async function startWebcamFlow() {
-  const loadingOverlay = document.getElementById('camera-loading-overlay');
+  const loadingOverlay  = document.getElementById('camera-loading-overlay');
   const fallbackOverlay = document.getElementById('camera-fallback-overlay');
-  const captureBtn = document.getElementById('btn-capture-scan');
-  const video = document.getElementById('webcam-video');
-  const select = document.getElementById('camera-device-select');
-  
+  const captureBtn      = document.getElementById('btn-capture-scan');
+  const loadingText     = document.getElementById('camera-loading-text');
+  const video           = document.getElementById('webcam-video');
+  const select          = document.getElementById('camera-device-select');
+  const errorTitle      = document.getElementById('camera-error-title');
+  const errorMsg        = document.getElementById('camera-error-msg');
+
+  // Reset UI
   loadingOverlay.classList.add('active');
   fallbackOverlay.classList.remove('active');
   captureBtn.disabled = true;
-  
-  const success = await loadFaceModels();
-  if (!success) {
-    loadingOverlay.classList.remove('active');
-    fallbackOverlay.classList.add('active');
-    document.getElementById('weights-status-box').style.display = 'flex';
-    document.getElementById('weights-progress-text').innerText = "Engine Error. Simulation mode recommended.";
-    return;
-  }
-  
+  if (loadingText) loadingText.innerText = 'Opening camera...';
+
+  // Simulation mode shortcut
   const simulateSwitch = document.getElementById('settings-simulate-cam');
   if (simulateSwitch && simulateSwitch.checked) {
+    if (loadingText) loadingText.innerText = 'Loading face engine (simulation mode)...';
+    await loadFaceModels();
     setupSimulationOverlay();
     return;
   }
 
-  // Load camera source list
-  await loadCameraDevices();
-
-  const selectedDeviceId = select ? select.value : '';
-  const videoConstraints = {
-    width: { ideal: 640 },
-    height: { ideal: 480 }
-  };
-  
-  if (selectedDeviceId) {
-    videoConstraints.deviceId = { exact: selectedDeviceId };
-  } else {
-    videoConstraints.facingMode = "user";
-  }
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: videoConstraints
-    });
-    
-    // Check if labels are now available (first permissions unlock) and reload device names
-    const tracks = stream.getVideoTracks();
-    if (tracks.length > 0 && tracks[0].label) {
-      await loadCameraDevices();
-    }
-    
-    state.webcamStream = stream;
-    video.srcObject = stream;
-    
-    video.onloadedmetadata = () => {
-      loadingOverlay.classList.remove('active');
-      captureBtn.disabled = false;
-    };
-  } catch (error) {
-    console.error("Camera access error:", error);
+  // ── Guard: check mediaDevices API is available ──
+  // On Android WebView it can be undefined if served over HTTP or in older versions
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     loadingOverlay.classList.remove('active');
     fallbackOverlay.classList.add('active');
+    if (errorTitle) errorTitle.innerText = 'Camera API Not Available';
+    if (errorMsg)   errorMsg.innerText   = 'Your browser/device does not support camera access. This may be an Android WebView restriction. Try enabling camera in the app settings or use Text Mood input instead.';
+    return;
   }
+
+  // ── Build constraints (try front camera, fall back to any) ──
+  const selectedDeviceId = select ? select.value : '';
+  let videoConstraints = { video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' } };
+  if (selectedDeviceId) {
+    videoConstraints = { video: { deviceId: { exact: selectedDeviceId }, width: { ideal: 640 }, height: { ideal: 480 } } };
+  }
+
+  // ── Helper: getUserMedia with a 12-second timeout ──
+  // On Android WebView, if onPermissionRequest is not handled, getUserMedia hangs forever.
+  // The timeout converts a silent hang into a visible error.
+  function getUserMediaWithTimeout(constraints, timeoutMs = 12000) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new DOMException(
+          'Camera access timed out. On Android this usually means camera permission was not granted. ' +
+          'Please allow camera access when the system asks, or go to Settings → Apps → MoodBeats → Permissions.',
+          'TimeoutError'
+        ));
+      }, timeoutMs);
+
+      navigator.mediaDevices.getUserMedia(constraints).then(stream => {
+        clearTimeout(timer);
+        resolve(stream);
+      }).catch(err => {
+        clearTimeout(timer);
+        reject(err);
+      });
+    });
+  }
+
+  if (loadingText) loadingText.innerText = 'Waiting for camera permission...';
+
+  let stream;
+  try {
+    stream = await getUserMediaWithTimeout(videoConstraints);
+  } catch (error) {
+    // If front-camera failed due to constraints, retry with any camera
+    if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+      try {
+        if (loadingText) loadingText.innerText = 'Retrying with default camera...';
+        stream = await getUserMediaWithTimeout({ video: true });
+      } catch (retryErr) {
+        error = retryErr;
+      }
+    }
+
+    if (!stream) {
+      console.error('[MoodBeats] Camera error:', error.name, error.message);
+      loadingOverlay.classList.remove('active');
+      fallbackOverlay.classList.add('active');
+
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        if (errorTitle) errorTitle.innerText = 'Camera Permission Denied';
+        if (errorMsg)   errorMsg.innerText   = /android/i.test(navigator.userAgent)
+          ? 'Tap Retry and allow camera access when Android asks. Or go to: Settings → Apps → MoodBeats → Permissions → Camera → Allow.'
+          : 'Allow camera in your browser address bar, then tap Retry.';
+      } else if (error.name === 'TimeoutError') {
+        if (errorTitle) errorTitle.innerText = 'Camera Timed Out';
+        if (errorMsg)   errorMsg.innerText   = error.message;
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        if (errorTitle) errorTitle.innerText = 'No Camera Found';
+        if (errorMsg)   errorMsg.innerText   = 'No camera detected on this device. Use Text Mood input instead.';
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        if (errorTitle) errorTitle.innerText = 'Camera In Use';
+        if (errorMsg)   errorMsg.innerText   = 'Camera is being used by another app. Close it and tap Retry.';
+      } else {
+        if (errorTitle) errorTitle.innerText = 'Camera Error';
+        if (errorMsg)   errorMsg.innerText   = `${error.name}: ${error.message || 'Could not open camera. Please tap Retry.'}`;
+      }
+      return;
+    }
+  }
+
+  // ── Camera opened! Attach stream to video element ──
+  if (loadingText) loadingText.innerText = 'Camera ready! Loading AI...';
+  state.webcamStream = stream;
+  video.setAttribute('playsinline', 'true');
+  video.setAttribute('autoplay', 'true');
+  video.muted = true;
+  video.srcObject = stream;
+  try { await video.play(); } catch (playErr) {
+    console.warn('[MoodBeats] video.play() blocked:', playErr);
+  }
+
+  // Re-enumerate cameras with labels now that permission was granted
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === 'videoinput');
+    if (select) {
+      select.innerHTML = '<option value="">Default Front Camera</option>';
+      videoDevices.forEach((d, i) => {
+        const opt = document.createElement('option');
+        opt.value = d.deviceId;
+        opt.text  = d.label || `Camera ${i + 1}`;
+        select.appendChild(opt);
+      });
+    }
+  } catch (e) { /* ignore enumerate errors */ }
+
+  // ── Load face-api models while camera is already showing ──
+  if (loadingText) loadingText.innerText = 'Loading face detection AI...';
+
+  const modelSuccess = await loadFaceModels();
+
+  // Once models are ready, hide the loading overlay
+  loadingOverlay.classList.remove('active');
+
+  if (!modelSuccess) {
+    // Camera is open but models failed — still allow simulation
+    captureBtn.disabled = false;
+    const weightsBox = document.getElementById('weights-status-box');
+    if (weightsBox) {
+      weightsBox.style.display = 'flex';
+      const wt = document.getElementById('weights-progress-text');
+      if (wt) wt.innerText = 'Face AI unavailable. Tap Scan to use simulation mode.';
+    }
+    return;
+  }
+
+  captureBtn.disabled = false;
 }
 
 function setupSimulationOverlay() {
@@ -547,96 +775,105 @@ function stopWebcam() {
 }
 
 async function triggerWebcamDetection() {
-  const captureBtn = document.getElementById('btn-capture-scan');
-  const scanBar = document.getElementById('scan-bar');
-  const video = document.getElementById('webcam-video');
+  const captureBtn    = document.getElementById('btn-capture-scan');
+  const scanBar       = document.getElementById('scan-bar');
+  const video         = document.getElementById('webcam-video');
   const overlayCanvas = document.getElementById('webcam-overlay');
-  
+
   if (!captureBtn || !scanBar || !video || !overlayCanvas) return;
-  
+
   captureBtn.disabled = true;
   captureBtn.querySelector('span').innerText = 'Scanning...';
   scanBar.classList.add('scanning');
-  
+
   const simulateSwitch = document.getElementById('settings-simulate-cam');
   if ((simulateSwitch && simulateSwitch.checked) || !state.webcamStream) {
     await new Promise(resolve => setTimeout(resolve, 1800));
     runSimulatedScanResult();
     return;
   }
-  
-  const overlayCtx = overlayCanvas.getContext('2d');
+
+  // Check faceapi is available before running detection
+  if (typeof faceapi === 'undefined' || !state.faceModelsLoaded) {
+    console.warn('[MoodBeats] faceapi not ready — falling back to simulation');
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    runSimulatedScanResult('Face AI not ready. Using simulated analysis...');
+    return;
+  }
+
+  const overlayCtx  = overlayCanvas.getContext('2d');
   let bestDetection = null;
   const scanStartTime = Date.now();
-  const scanDuration = 1800; // 1.8 seconds scan sweep
-  
-  const displaySize = { width: video.offsetWidth, height: video.offsetHeight };
+  const scanDuration  = 2500; // 2.5 second scan
+
+  // ── Critical: match canvas to the video's *rendered* size ──
+  const vw = video.videoWidth  || video.offsetWidth  || 640;
+  const vh = video.videoHeight || video.offsetHeight || 480;
+  overlayCanvas.width  = vw;
+  overlayCanvas.height = vh;
+  const displaySize = { width: vw, height: vh };
   faceapi.matchDimensions(overlayCanvas, displaySize);
-  
+
   const detectLoop = async () => {
     if (Date.now() - scanStartTime > scanDuration || !state.webcamStream) {
       stopWebcam();
       overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-      
+
       if (bestDetection) {
         const expressions = bestDetection.expressions;
         let dominantExpression = 'neutral';
         let maxProbability = -1;
-        
+
         for (const [expr, val] of Object.entries(expressions)) {
           if (val > maxProbability) {
             maxProbability = val;
             dominantExpression = expr;
           }
         }
-        
+
         let mappedMood = 'Relaxed';
         let confidenceVal = Math.round(maxProbability * 100);
-        
+
         switch (dominantExpression) {
-          case 'happy': mappedMood = 'Happy'; break;
-          case 'sad': mappedMood = 'Sad'; break;
-          case 'angry': mappedMood = 'Angry'; break;
-          case 'surprised': mappedMood = 'Energetic'; break;
+          case 'happy':    mappedMood = 'Happy';           break;
+          case 'sad':      mappedMood = 'Sad';             break;
+          case 'angry':    mappedMood = 'Angry';           break;
+          case 'surprised':mappedMood = 'Energetic';       break;
           case 'fearful':
-          case 'disgusted': mappedMood = 'Focused/Stressed'; break;
+          case 'disgusted':mappedMood = 'Focused/Stressed';break;
           case 'neutral':
-          default: mappedMood = 'Relaxed';
+          default:         mappedMood = 'Relaxed';
         }
-        
+
         navigateTo('view-results');
         renderResults(mappedMood, confidenceVal);
       } else {
         navigateTo('view-results');
-        runSimulatedScanResult("No face detected. Analyzing ambient room vibes...");
+        runSimulatedScanResult('No face detected — analyzing ambient vibes...');
       }
       return;
     }
-    
+
     try {
-      const detection = await faceapi.detectSingleFace(
-        video,
-        new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.15 })
-      ).withFaceLandmarks().withFaceExpressions();
-      
+      const detection = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.15 }))
+        .withFaceLandmarks()
+        .withFaceExpressions();
+
       if (detection) {
         bestDetection = detection;
-        
         overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
         const resized = faceapi.resizeResults(detection, displaySize);
-        
         faceapi.draw.drawDetections(overlayCanvas, resized);
         faceapi.draw.drawFaceLandmarks(overlayCanvas, resized);
       }
     } catch (err) {
-      console.error("Frame detection error:", err);
+      console.error('[MoodBeats] Frame detection error:', err);
     }
-    
-    if (state.webcamStream) {
-      requestAnimationFrame(detectLoop);
-    }
+
+    if (state.webcamStream) requestAnimationFrame(detectLoop);
   };
-  
+
   requestAnimationFrame(detectLoop);
 }
 
@@ -672,7 +909,7 @@ function renderResults(mood, confidence) {
   document.getElementById('result-confidence-val').innerText = `${confidence}%`;
   document.getElementById('result-mood-description').innerText = description;
   
-  state.currentGeneratedPlaylist = [...PLAYLISTS[mood]];
+  state.currentGeneratedPlaylist = [...INDIAN_PLAYLISTS[mood]];
   populatePlaylist(state.currentGeneratedPlaylist);
   
   addToHistory(mood, emoji, confidence);
@@ -757,11 +994,76 @@ function shufflePlaylist() {
 let ytPlayer = null;
 let progressInterval = null;
 let isSeeking = false;
+let isYtAPIReady = false;
 
 // Called automatically by YouTube IFrame API when ready
 window.onYouTubeIframeAPIReady = function() {
   console.log('[MoodBeats] YouTube IFrame API ready.');
+  isYtAPIReady = true;
 };
+
+// Pre-initialize YouTube Player on first user interaction to bypass mobile audio policies
+function preInitYoutubePlayer() {
+  if (ytPlayer || !isYtAPIReady) return;
+  
+  const placeholder = document.getElementById('youtube-player-placeholder');
+  if (!placeholder) return;
+  
+  console.log('[MoodBeats] Pre-initializing YouTube player for mobile support...');
+  placeholder.innerHTML = '<div id="yt-player-div"></div>';
+  
+  try {
+    ytPlayer = new YT.Player('yt-player-div', {
+      height: '100%',
+      width:  '100%',
+      videoId: 'y6Sxv-sUYtM', // Pharrell Williams - Happy (dummy initial video)
+      playerVars: { 
+        autoplay: 0, 
+        controls: 0, 
+        rel: 0, 
+        modestbranding: 1, 
+        playsinline: 1 
+      },
+      events: {
+        onReady: (e) => {
+          console.log('[MoodBeats] YT Player pre-initialized inline.');
+        },
+        onStateChange: (e) => {
+          if (e.data === YT.PlayerState.ENDED) {
+            stopProgressLoop();
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
+            notifyAndroidBridge('playback', { isPlaying: false, position: 0, duration: 0 });
+            setTimeout(() => playNext(), 800);
+          } else if (e.data === YT.PlayerState.PLAYING) {
+            state.isPlaying = true;
+            document.getElementById('player-play-icon').setAttribute('data-lucide', 'pause');
+            lucide.createIcons();
+            startProgressLoop();
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+            notifyAndroidBridge('playback', { isPlaying: true, position: 0, duration: 1 });
+          } else if (e.data === YT.PlayerState.PAUSED) {
+            state.isPlaying = false;
+            document.getElementById('player-play-icon').setAttribute('data-lucide', 'play');
+            lucide.createIcons();
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+            notifyAndroidBridge('playback', { isPlaying: false, position: 0, duration: 1 });
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.error('[MoodBeats] Error pre-initializing player:', err);
+  }
+}
+
+// Bind to first click/touchstart anywhere on document
+function handleFirstInteraction() {
+  preInitYoutubePlayer();
+  document.removeEventListener('click', handleFirstInteraction);
+  document.removeEventListener('touchstart', handleFirstInteraction);
+}
+document.addEventListener('click', handleFirstInteraction);
+document.addEventListener('touchstart', handleFirstInteraction);
 
 function formatTime(seconds) {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -787,6 +1089,22 @@ function startProgressLoop() {
       
       document.getElementById('player-time-current').innerText = formatTime(current);
       document.getElementById('player-time-total').innerText   = formatTime(total);
+      
+      // Sync Now Playing panel scrubber
+      const npFill  = document.getElementById('np-progress-fill');
+      const npThumb = document.getElementById('np-progress-thumb');
+      if (npFill)  npFill.style.width = `${pct}%`;
+      if (npThumb) npThumb.style.left = `${pct}%`;
+      const npCur = document.getElementById('np-time-current');
+      const npTot = document.getElementById('np-time-total');
+      if (npCur) npCur.innerText = formatTime(current);
+      if (npTot) npTot.innerText = formatTime(total);
+      
+      // Update system Media Session position slider
+      updateMediaSessionPosition();
+      
+      // Notify native Android bridge of playback state and progress
+      notifyAndroidBridge('playback', { isPlaying: state.isPlaying, position: current, duration: total });
     } catch(e) {}
   }, 500);
 }
@@ -864,17 +1182,70 @@ function updateVolumeIcon(vol) {
   lucide.createIcons();
 }
 
+function createFreshPlayer(videoId, vol) {
+  const placeholder = document.getElementById('youtube-player-placeholder');
+  placeholder.innerHTML = '<div id="yt-player-div"></div>';
+  
+  try {
+    ytPlayer = new YT.Player('yt-player-div', {
+      height: '100%',
+      width:  '100%',
+      videoId: videoId,
+      playerVars: { autoplay: 1, controls: 0, rel: 0, modestbranding: 1, playsinline: 1 },
+      events: {
+        onReady: (e) => {
+          e.target.setVolume(vol);
+          try { e.target.playVideo(); } catch(err){}
+          startProgressLoop();
+        },
+        onStateChange: (e) => {
+          if (e.data === YT.PlayerState.ENDED) {
+            stopProgressLoop();
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
+            notifyAndroidBridge('playback', { isPlaying: false, position: 0, duration: 0 });
+            setTimeout(() => playNext(), 800);
+          } else if (e.data === YT.PlayerState.PLAYING) {
+            state.isPlaying = true;
+            document.getElementById('player-play-icon').setAttribute('data-lucide', 'pause');
+            lucide.createIcons();
+            startProgressLoop();
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+            notifyAndroidBridge('playback', { isPlaying: true, position: 0, duration: 1 });
+          } else if (e.data === YT.PlayerState.PAUSED) {
+            state.isPlaying = false;
+            document.getElementById('player-play-icon').setAttribute('data-lucide', 'play');
+            lucide.createIcons();
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+            notifyAndroidBridge('playback', { isPlaying: false, position: 0, duration: 1 });
+          }
+        }
+      }
+    });
+  } catch(err) {
+    console.error('[MoodBeats] Failed to create fresh player:', err);
+  }
+}
+
 function playSong(song, playlist, index) {
   state.currentPlayerSong = song;
   state.currentPlayerPlaylist = playlist;
   state.currentPlayerIndex = index;
   state.isPlaying = true;
   
+  // Track recently played IDs to prevent autoplay repeats (window of 5)
+  if (song && song.videoId) {
+    state.recentlyPlayedIds = [song.videoId, ...state.recentlyPlayedIds].slice(0, 5);
+  }
+  
+  // Update Media Session (Lockscreen Controls)
+  updateMediaSession(song);
+  
   // Show Player Bar
   const playerBar = document.getElementById('player-bar');
   playerBar.style.display = 'flex';
   void playerBar.offsetHeight;
   playerBar.classList.add('active');
+  document.body.classList.add('player-active');
   
   // Update details
   document.getElementById('player-title').innerText = song.title;
@@ -922,43 +1293,21 @@ function playSong(song, playlist, index) {
     state._ytMsgHandler = null;
   }
   
-  const placeholder = document.getElementById('youtube-player-placeholder');
   const vol = parseInt(document.getElementById('player-volume-slider')?.value ?? 80);
   
   if (ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
     // Reuse existing player — just load new video
-    ytPlayer.loadVideoById(song.videoId);
-    ytPlayer.setVolume(vol);
+    try {
+      ytPlayer.loadVideoById(song.videoId);
+      ytPlayer.setVolume(vol);
+      ytPlayer.playVideo();
+    } catch (e) {
+      console.error("[MoodBeats] Failed to load video on existing player:", e);
+      createFreshPlayer(song.videoId, vol);
+    }
   } else {
     // Create fresh YT.Player instance
-    placeholder.innerHTML = '<div id="yt-player-div"></div>';
-    ytPlayer = new YT.Player('yt-player-div', {
-      height: '100%',
-      width:  '100%',
-      videoId: song.videoId,
-      playerVars: { autoplay: 1, controls: 0, rel: 0, modestbranding: 1 },
-      events: {
-        onReady: (e) => {
-          e.target.setVolume(vol);
-          startProgressLoop();
-        },
-        onStateChange: (e) => {
-          if (e.data === YT.PlayerState.ENDED) {
-            stopProgressLoop();
-            setTimeout(() => playNext(), 800);
-          } else if (e.data === YT.PlayerState.PLAYING) {
-            state.isPlaying = true;
-            document.getElementById('player-play-icon').setAttribute('data-lucide', 'pause');
-            lucide.createIcons();
-            startProgressLoop();
-          } else if (e.data === YT.PlayerState.PAUSED) {
-            state.isPlaying = false;
-            document.getElementById('player-play-icon').setAttribute('data-lucide', 'play');
-            lucide.createIcons();
-          }
-        }
-      }
-    });
+    createFreshPlayer(song.videoId, vol);
   }
   
   // If ytPlayer already existed and we reused it, restart progress loop after a short delay
@@ -966,42 +1315,214 @@ function playSong(song, playlist, index) {
     setTimeout(() => startProgressLoop(), 1500);
   }
   
+  // Sync NP panel
+  syncNowPlayingPanel(song, index);
+  
   initProgressBar();
   initVolumeControl();
   lucide.createIcons();
 }
 
-function renderRecentlyPlayed() {
-  let container = document.getElementById('recently-played-bar');
-  if (!container) return;
+// ==========================================
+// Now Playing Panel
+// ==========================================
+function syncNowPlayingPanel(song, index) {
+  if (!song) return;
+  const npTitle  = document.getElementById('np-title');
+  const npArtist = document.getElementById('np-artist');
+  const npArt    = document.getElementById('np-art');
+  const npYt     = document.getElementById('np-yt-link');
+  const npSp     = document.getElementById('np-spotify-link');
   
-  container.innerHTML = '';
-  if (state.recentlyPlayed.length <= 1) {
+  if (npTitle)  npTitle.innerText  = song.title;
+  if (npArtist) npArtist.innerText = song.artist;
+  
+  if (npArt) {
+    const hue1 = (index * 25) % 360;
+    const hue2 = (hue1 + 40) % 360;
+    npArt.style.background = `linear-gradient(135deg, hsl(${hue1}, 85%, 60%), hsl(${hue2}, 85%, 50%))`;
+  }
+  
+  if (npYt) npYt.href = `https://www.youtube.com/watch?v=${song.videoId}`;
+  if (npSp) npSp.href = `https://open.spotify.com/search/${encodeURIComponent(song.title + ' ' + song.artist)}`;
+  
+  // Sync play icon in NP panel
+  const npPlayIcon = document.getElementById('np-play-icon');
+  if (npPlayIcon) npPlayIcon.setAttribute('data-lucide', 'pause');
+  
+  // Art playing animation
+  if (npArt) npArt.classList.add('playing');
+}
+
+function openNowPlaying() {
+  const panel = document.getElementById('now-playing-panel');
+  if (!panel) return;
+  panel.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  lucide.createIcons();
+}
+
+function closeNowPlaying() {
+  const panel = document.getElementById('now-playing-panel');
+  if (!panel) return;
+  panel.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function updateNPPlayPauseIcon(isPlaying) {
+  const icon = document.getElementById('np-play-icon');
+  if (icon) {
+    icon.setAttribute('data-lucide', isPlaying ? 'pause' : 'play');
+    lucide.createIcons();
+  }
+  const npArt = document.getElementById('np-art');
+  if (npArt) {
+    if (isPlaying) npArt.classList.add('playing');
+    else npArt.classList.remove('playing');
+  }
+}
+
+// ==========================================
+// Media Session Controls (Lockscreen / Spotify Vibe)
+// ==========================================
+function updateMediaSession(song) {
+  if ('mediaSession' in navigator) {
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: song.title,
+        artist: song.artist,
+        album: 'MoodBeats',
+        artwork: [
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icon.png', sizes: '512x512', type: 'image/png' }
+        ]
+      });
+
+      navigator.mediaSession.playbackState = 'playing';
+
+      // Lockscreen actions
+      navigator.mediaSession.setActionHandler('play', () => {
+        if (!state.isPlaying) togglePlayPause();
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        if (state.isPlaying) togglePlayPause();
+      });
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        playPrev();
+      });
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        playNext();
+      });
+      
+      // Support seekto slider on notification drawer
+      if ('setActionHandler' in navigator.mediaSession) {
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+          if (ytPlayer && typeof ytPlayer.seekTo === 'function') {
+            ytPlayer.seekTo(details.seekTime, true);
+            if (document.getElementById('player-progress-fill')) {
+              const total = ytPlayer.getDuration() || 1;
+              const pct = (details.seekTime / total) * 100;
+              document.getElementById('player-progress-fill').style.width = `${pct}%`;
+              document.getElementById('player-progress-thumb').style.left = `${pct}%`;
+            }
+          }
+        });
+      }
+    } catch (e) {
+      console.error('[MediaSession] Error updating metadata:', e);
+    }
+  }
+  
+  // Notify native Android bridge of metadata change
+  notifyAndroidBridge('metadata', { title: song.title, artist: song.artist });
+}
+
+function updateMediaSessionPosition() {
+  if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
+    if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
+      try {
+        const current = ytPlayer.getCurrentTime() || 0;
+        const total = ytPlayer.getDuration() || 0;
+        if (total > 0 && current <= total) {
+          navigator.mediaSession.setPositionState({
+            duration: total,
+            playbackRate: ytPlayer.getPlaybackRate() || 1,
+            position: current
+          });
+        }
+      } catch (e) {
+        console.error('[MediaSession] Error setting position state:', e);
+      }
+    }
+  }
+}
+
+// Android Audio Bridge helper
+function notifyAndroidBridge(action, data) {
+  if (window.AndroidAudioBridge) {
+    try {
+      if (action === 'metadata') {
+        window.AndroidAudioBridge.updateMetadata(data.title, data.artist);
+      } else if (action === 'playback') {
+        window.AndroidAudioBridge.updatePlaybackState(data.isPlaying, data.position, data.duration);
+      }
+    } catch (e) {
+      console.warn('[AndroidBridge] Error notifying bridge:', e);
+    }
+  }
+}
+
+function renderRecentlyPlayed() {
+  // Legacy player bar chips (hidden in mini player now)
+  let container = document.getElementById('recently-played-bar');
+  if (container) {
+    container.innerHTML = '';
     container.style.display = 'none';
+  }
+
+  // Home view recently played horizontal row
+  const homeSection = document.getElementById('home-recently-section');
+  const homeRow     = document.getElementById('home-recently-row');
+  
+  if (!homeRow || state.recentlyPlayed.length < 1) {
+    if (homeSection) homeSection.style.display = 'none';
     return;
   }
   
-  container.style.display = 'flex';
-  const label = document.createElement('span');
-  label.className = 'recently-label';
-  label.innerText = 'Recent:';
-  container.appendChild(label);
+  homeSection.style.display = 'block';
+  homeRow.innerHTML = '';
   
-  state.recentlyPlayed.slice(1).forEach((song) => {
-    const chip = document.createElement('button');
-    chip.className = 'recent-chip';
-    chip.title = `${song.title} — ${song.artist}`;
-    chip.innerHTML = `<span class="recent-chip-title">${song.title}</span>`;
-    chip.onclick = () => {
-      const idx = state.currentPlayerPlaylist.findIndex(s => s.videoId === song.videoId);
-      playSong(song, idx !== -1 ? state.currentPlayerPlaylist : state.recentlyPlayed, idx !== -1 ? idx : state.recentlyPlayed.indexOf(song));
+  state.recentlyPlayed.forEach((song, i) => {
+    const hue1 = (i * 37) % 360;
+    const hue2 = (hue1 + 40) % 360;
+    const card = document.createElement('div');
+    card.className = 'recently-song-card';
+    card.title = `${song.title} — ${song.artist}`;
+    card.innerHTML = `
+      <div class="recently-card-art" style="background:linear-gradient(135deg,hsl(${hue1},80%,60%),hsl(${hue2},80%,45%));">
+        <i data-lucide="music" style="width:28px;height:28px;color:#fff;"></i>
+      </div>
+      <div class="recently-card-info">
+        <div class="recently-card-title">${song.title}</div>
+        <div class="recently-card-artist">${song.artist}</div>
+      </div>`;
+    card.onclick = () => {
+      const idx = state.currentPlayerPlaylist
+        ? state.currentPlayerPlaylist.findIndex(s => s.videoId === song.videoId)
+        : -1;
+      playSong(song,
+        idx !== -1 ? state.currentPlayerPlaylist : state.recentlyPlayed,
+        idx !== -1 ? idx : state.recentlyPlayed.indexOf(song));
     };
-    container.appendChild(chip);
+    homeRow.appendChild(card);
   });
+  
+  lucide.createIcons();
 }
 
+
 function togglePlayPause() {
-  const playIcon = document.getElementById('player-play-icon');
+  const playIcon   = document.getElementById('player-play-icon');
   if (!ytPlayer) return;
   
   state.isPlaying = !state.isPlaying;
@@ -1010,18 +1531,94 @@ function togglePlayPause() {
     ytPlayer.playVideo();
     playIcon.setAttribute('data-lucide', 'pause');
     startProgressLoop();
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+    notifyAndroidBridge('playback', { isPlaying: true, position: ytPlayer.getCurrentTime() || 0, duration: ytPlayer.getDuration() || 1 });
   } else {
     ytPlayer.pauseVideo();
     playIcon.setAttribute('data-lucide', 'play');
     stopProgressLoop();
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+    notifyAndroidBridge('playback', { isPlaying: false, position: ytPlayer.getCurrentTime() || 0, duration: ytPlayer.getDuration() || 1 });
   }
+  updateNPPlayPauseIcon(state.isPlaying);
   lucide.createIcons();
 }
 
+// ==========================================
+// Genre Similarity Scoring (Vibe Matching)
+// ==========================================
+const GENRE_FAMILIES = [
+  // Upbeat / Dance
+  ['pop', 'dance', 'disco', 'funk', 'k-pop', 'bollywood dance', 'nu-disco', 'edm', 'house', 'trance'],
+  // Rock / Metal
+  ['rock', 'metal', 'grunge', 'punk', 'nu-metal', 'alt metal', 'rap metal', 'heavy metal', 'hard rock', 'bollywood rock'],
+  // Hip-Hop / Urban
+  ['hip-hop', 'rap', 'trap', 'r&b', 'soul', 'motown', 'bollywood dance'],
+  // Electronic / Synth
+  ['electronic', 'edm', 'synth', 'trance', 'ambient', 'trip-hop', 'lofi', 'indie pop'],
+  // Acoustic / Folk / Indie
+  ['indie', 'folk', 'acoustic', 'indie folk', 'indie pop', 'indie ambient', 'indie rock'],
+  // Classical / Cinematic
+  ['classical', 'neoclassical', 'cinematic', 'soundtrack', 'modern classical', 'piano', 'impressionist'],
+  // Bollywood / Sufi
+  ['bollywood', 'sufi', 'devotional', 'bollywood pop', 'bollywood sad', 'bollywood folk', 'bollywood romantic'],
+  // Jazz / Blues / Vintage
+  ['jazz', 'blues', 'soul', 'vocal', 'motown', '50s pop', '60s pop'],
+  // Ballad / Soft
+  ['ballad', 'pop ballad', 'soft rock', 'vocal pop', 'art pop']
+];
+
+function getGenreScore(genre1, genre2) {
+  if (!genre1 || !genre2) return 0;
+  const g1 = genre1.toLowerCase();
+  const g2 = genre2.toLowerCase();
+  if (g1 === g2) return 3; // Exact match
+  // Partial match (one contains the other)
+  if (g1.includes(g2) || g2.includes(g1)) return 2;
+  // Same genre family
+  for (const family of GENRE_FAMILIES) {
+    const in1 = family.some(f => g1.includes(f));
+    const in2 = family.some(f => g2.includes(f));
+    if (in1 && in2) return 1;
+  }
+  return 0;
+}
+
 function playNext() {
-  if (state.currentPlayerPlaylist.length === 0) return;
-  const nextIdx = (state.currentPlayerIndex + 1) % state.currentPlayerPlaylist.length;
-  playSong(state.currentPlayerPlaylist[nextIdx], state.currentPlayerPlaylist, nextIdx);
+  const playlist = state.currentPlayerPlaylist;
+  if (playlist.length === 0) return;
+  
+  const currentSong = state.currentPlayerSong;
+  const currentGenre = currentSong ? currentSong.genre : '';
+  const recentIds = state.recentlyPlayedIds;
+  
+  // Build candidate list: all songs except the very last played
+  const candidates = playlist
+    .map((song, idx) => ({ song, idx }))
+    .filter(({ song }) => song.videoId !== (currentSong && currentSong.videoId));
+  
+  if (candidates.length === 0) {
+    // Only 1 song in playlist — just replay it
+    playSong(playlist[0], playlist, 0);
+    return;
+  }
+  
+  // Score each candidate: higher = better vibe match, penalise recently played
+  const scored = candidates.map(({ song, idx }) => {
+    let score = getGenreScore(currentGenre, song.genre);
+    // Penalise songs played recently (within last 5)
+    const recentPenalty = recentIds.indexOf(song.videoId);
+    if (recentPenalty !== -1) {
+      score -= (5 - recentPenalty) * 2; // heavier penalty for more recently played
+    }
+    return { song, idx, score };
+  });
+  
+  // Sort: highest score first; break ties randomly for variety
+  scored.sort((a, b) => b.score - a.score || Math.random() - 0.5);
+  
+  const best = scored[0];
+  playSong(best.song, playlist, best.idx);
 }
 
 function playPrev() {
@@ -1052,16 +1649,16 @@ function toggleVideoDrawer() {
 
 function closePlayer() {
   const playerBar = document.getElementById('player-bar');
-  const drawer = document.getElementById('player-video-drawer');
   
   playerBar.classList.remove('active');
-  drawer.classList.remove('open');
+  document.body.classList.remove('player-active');
   state.isVideoOpen = false;
   state.isPlaying = false;
   
   setTimeout(() => {
     playerBar.style.display = 'none';
-    document.getElementById('youtube-player-placeholder').innerHTML = '';
+    const placeholder = document.getElementById('youtube-player-placeholder');
+    if (placeholder) placeholder.innerHTML = '';
   }, 400);
 }
 
@@ -1248,6 +1845,115 @@ function renderSearchResults(filteredSongs) {
   lucide.createIcons();
 }
 
+async function searchYouTubeGlobally(query) {
+  const isCapacitor = window.Capacitor !== undefined;
+  
+  if (isCapacitor) {
+    try {
+      console.log('[MoodBeats] Querying YouTube search directly from app WebView...');
+      const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%253D%253D`;
+      const response = await fetch(ytUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9'
+        }
+      });
+      if (response.ok) {
+        const html = await response.text();
+        return parseYouTubeHTML(html);
+      }
+    } catch (nativeErr) {
+      console.warn('[MoodBeats] Direct YouTube fetch failed, trying backend server:', nativeErr);
+    }
+  }
+
+  // Normal browser or fallback to Node server
+  const serverUrl = getServerUrl();
+  const response = await fetch(`${serverUrl}/api/yt-search?q=${encodeURIComponent(query)}`);
+  if (!response.ok) throw new Error("Server Search failed");
+  return await response.json();
+}
+
+function parseYouTubeHTML(html) {
+  let results = [];
+  const seenIds = new Set();
+  
+  try {
+    const matchJson = html.match(/ytInitialData\s*=\s*({.+?});/);
+    if (matchJson) {
+      const json = JSON.parse(matchJson[1]);
+      let contents;
+      
+      if (json.contents && json.contents.twoColumnSearchResultsRenderer) {
+        contents = json.contents.twoColumnSearchResultsRenderer.primaryContents.sectionListRenderer.contents;
+      } else if (json.contents && json.contents.sectionListRenderer) {
+        contents = json.contents.sectionListRenderer.contents;
+      }
+      
+      if (contents) {
+        let items = [];
+        for (const c of contents) {
+          if (c.itemSectionRenderer) {
+            items = c.itemSectionRenderer.contents;
+            break;
+          }
+        }
+        
+        for (const item of items) {
+          if (item.videoRenderer) {
+            const v = item.videoRenderer;
+            const title = v.title.runs[0].text;
+            const videoId = v.videoId;
+            const channel = v.ownerText.runs[0].text;
+            
+            results.push({
+              title: title,
+              artist: channel,
+              videoId: videoId,
+              genre: 'YouTube'
+            });
+            seenIds.add(videoId);
+            if (results.length >= 8) break;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("ytInitialData parse failed in client, running regex fallback:", e);
+  }
+  
+  if (results.length === 0) {
+    const videoTitleRegex = /"title":{"runs":\[{"text":"([^"]+)"}\],"accessibility"/g;
+    const idRegex = /"videoId":"([a-zA-Z0-9_-]{11})"/g;
+    
+    const ids = [];
+    const titles = [];
+    
+    let idMatch;
+    while ((idMatch = idRegex.exec(html)) !== null) {
+      ids.push(idMatch[1]);
+    }
+    
+    let titleMatch;
+    while ((titleMatch = videoTitleRegex.exec(html)) !== null) {
+      titles.push(titleMatch[1]);
+    }
+    
+    for (let i = 0; i < Math.min(ids.length, titles.length, 8); i++) {
+      if (!seenIds.has(ids[i])) {
+        seenIds.add(ids[i]);
+        results.push({
+          title: titles[i],
+          artist: 'YouTube Upload',
+          videoId: ids[i],
+          genre: 'YouTube'
+        });
+      }
+    }
+  }
+  return results;
+}
+
 function filterSongs() {
   const queryRaw = document.getElementById('search-input').value;
   const query = queryRaw.trim().toLowerCase();
@@ -1275,15 +1981,12 @@ function filterSongs() {
     
     state.ytSearchTimeout = setTimeout(async () => {
       try {
-        const response = await fetch(`/api/yt-search?q=${encodeURIComponent(query)}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (state.searchMode === 'youtube' && document.getElementById('search-input').value.trim().toLowerCase() === query) {
-            renderSearchResults(data);
-          }
+        const data = await searchYouTubeGlobally(query);
+        if (state.searchMode === 'youtube' && document.getElementById('search-input').value.trim().toLowerCase() === query) {
+          renderSearchResults(data);
         }
       } catch (err) {
-        console.error("YouTube remote search failed:", err);
+        console.error("YouTube search failed:", err);
       } finally {
         if (statusBox) statusBox.style.display = 'none';
       }
@@ -1334,7 +2037,7 @@ async function initPhoneQR() {
   qrSpinner.style.display = 'block';
   
   try {
-    const response = await fetch('/api/ip');
+    const response = await fetch(`${getServerUrl()}/api/ip`);
     if (!response.ok) throw new Error("API failed");
     const data = await response.json();
     
@@ -1389,12 +2092,29 @@ async function startPhoneWebcam() {
     const stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }
     });
-    state.phoneWebcamStream = stream;
-    video.srcObject = stream;
     video.onloadedmetadata = () => {
       loadingOverlay.classList.remove('active');
       captureBtn.disabled = false;
     };
+    
+    // Safety fallback: if metadata event is missed or blocked, force unlock UI after 1.5s
+    const fallbackTimer = setTimeout(() => {
+      loadingOverlay.classList.remove('active');
+      captureBtn.disabled = false;
+    }, 1500);
+    
+    state.phoneWebcamStream = stream;
+    video.setAttribute('playsinline', 'true');
+    video.srcObject = stream;
+    
+    try {
+      await video.play();
+    } catch(playErr) {
+      console.warn("Phone webcam video.play() failed:", playErr);
+    }
+    
+    // Clear fallback timer if already unlocked
+    video.addEventListener('playing', () => clearTimeout(fallbackTimer), { once: true });
   } catch (error) {
     console.error("Phone camera access error:", error);
     loadingOverlay.classList.remove('active');
@@ -1481,7 +2201,7 @@ async function triggerPhoneDetection() {
       successCard.style.display = 'block';
       
       try {
-        await fetch(`/api/sync?session=${state.phoneSessionId}`, {
+        await fetch(`${getServerUrl()}/api/sync?session=${state.phoneSessionId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mood: detectedMood, confidence: confidenceVal })
@@ -1526,18 +2246,25 @@ function toggleTheme(forcedState = null) {
   const themeSwitch = document.getElementById('settings-theme-switch');
   
   if (forcedState !== null) {
-    state.isLightMode = forcedState;
+    state.isDarkMode = forcedState;
   } else {
-    state.isLightMode = !state.isLightMode;
+    state.isDarkMode = !state.isDarkMode;
   }
   
-  if (state.isLightMode) {
-    body.classList.add('light-theme');
+  if (state.isDarkMode) {
+    body.classList.add('dark-theme');
     if (themeSwitch) themeSwitch.checked = true;
   } else {
-    body.classList.remove('light-theme');
+    body.classList.remove('dark-theme');
     if (themeSwitch) themeSwitch.checked = false;
   }
+}
+
+function getServerUrl() {
+  const saved = localStorage.getItem('moodbeats_server_url');
+  if (saved) return saved.replace(/\/$/, '');
+  // Fallback to current window origin (which points to localhost inside WebView)
+  return window.location.origin.replace(/\/$/, '');
 }
 
 // ==========================================
@@ -1566,6 +2293,115 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('settings-theme-switch').addEventListener('change', (e) => {
     toggleTheme(e.target.checked);
   });
+  
+  // Update greeting based on time of day
+  const greetingEl = document.getElementById('home-greeting-text');
+  if (greetingEl) {
+    const hour = new Date().getHours();
+    let greeting = 'Good day 👋';
+    if (hour >= 5 && hour < 12)  greeting = 'Good morning ☀️';
+    else if (hour >= 12 && hour < 17) greeting = 'Good afternoon 🌤️';
+    else if (hour >= 17 && hour < 21) greeting = 'Good evening 🌆';
+    else greeting = 'Good night 🌙';
+    greetingEl.textContent = greeting;
+  }
+  
+  // Mobile mini player controls (mirror desktop controls)
+  const playMobile = document.getElementById('player-play-mobile');
+  const nextMobile = document.getElementById('player-next-mobile');
+  if (playMobile) {
+    playMobile.style.display = 'flex';
+    playMobile.addEventListener('click', (e) => { e.stopPropagation(); togglePlayPause(); });
+    // Keep mobile play icon in sync
+    const origPlay = document.getElementById('player-play');
+    if (origPlay) origPlay.style.display = 'none'; // hide desktop center play on mobile
+  }
+  if (nextMobile) {
+    nextMobile.style.display = 'flex';
+    nextMobile.addEventListener('click', (e) => { e.stopPropagation(); playNext(); });
+  }
+  
+  // Now Playing panel — open on tap of player left area
+  const playerLeft = document.getElementById('player-left-tap');
+  if (playerLeft) {
+    playerLeft.addEventListener('click', (e) => {
+      if (state.currentPlayerSong) openNowPlaying();
+    });
+  }
+  
+  // Now Playing panel controls
+  const npClose  = document.getElementById('np-close');
+  const npPlay   = document.getElementById('np-play');
+  const npPrev   = document.getElementById('np-prev');
+  const npNext   = document.getElementById('np-next');
+  const npShuffle= document.getElementById('np-shuffle');
+  const npRepeat = document.getElementById('np-repeat');
+  const npMute   = document.getElementById('np-mute');
+  const npVol    = document.getElementById('np-volume-slider');
+  // npToggleVideo removed — video tab removed from nav
+  const npProgressTrack = document.getElementById('np-progress-track');
+  
+  if (npClose)  npClose.addEventListener('click', closeNowPlaying);
+  if (npPlay)   npPlay.addEventListener('click', togglePlayPause);
+  if (npPrev)   npPrev.addEventListener('click', playPrev);
+  if (npNext)   npNext.addEventListener('click', playNext);
+  
+  if (npShuffle) {
+    npShuffle.addEventListener('click', () => {
+      npShuffle.classList.toggle('active');
+    });
+  }
+  
+  if (npRepeat) {
+    npRepeat.addEventListener('click', () => {
+      npRepeat.classList.toggle('active');
+    });
+  }
+  
+  if (npMute) {
+    npMute.addEventListener('click', () => {
+      const volSlider = document.getElementById('player-volume-slider');
+      const muteBtn   = document.getElementById('player-mute');
+      if (muteBtn) muteBtn.click();
+    });
+  }
+  
+  if (npVol) {
+    npVol.addEventListener('input', (e) => {
+      const volSlider = document.getElementById('player-volume-slider');
+      if (volSlider) {
+        volSlider.value = e.target.value;
+        if (ytPlayer && typeof ytPlayer.setVolume === 'function') {
+          ytPlayer.setVolume(parseInt(e.target.value));
+        }
+      }
+    });
+  }
+  
+  // NP scrubber seek
+  if (npProgressTrack) {
+    npProgressTrack.addEventListener('click', (e) => {
+      const rect = npProgressTrack.getBoundingClientRect();
+      const pct  = (e.clientX - rect.left) / rect.width;
+      if (ytPlayer && typeof ytPlayer.seekTo === 'function') {
+        const total = ytPlayer.getDuration() || 0;
+        ytPlayer.seekTo(pct * total, true);
+      }
+    });
+  }
+  
+  // Close NP panel on swipe down
+  let npTouchStartY = 0;
+  const npPanel = document.getElementById('now-playing-panel');
+  if (npPanel) {
+    npPanel.addEventListener('touchstart', (e) => {
+      npTouchStartY = e.touches[0].clientY;
+    }, { passive: true });
+    npPanel.addEventListener('touchend', (e) => {
+      const dy = e.changedTouches[0].clientY - npTouchStartY;
+      if (dy > 80) closeNowPlaying();
+    }, { passive: true });
+  }
   
   // Text Input Interactivity
   const textarea = document.getElementById('mood-text-area');
@@ -1601,12 +2437,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('player-play').addEventListener('click', togglePlayPause);
   document.getElementById('player-next').addEventListener('click', playNext);
   document.getElementById('player-prev').addEventListener('click', playPrev);
-  document.getElementById('player-toggle-video').addEventListener('click', toggleVideoDrawer);
+  // player-toggle-video removed from HTML (video drawer no longer in mini player)
   document.getElementById('player-close').addEventListener('click', closePlayer);
-  document.getElementById('btn-minimize-video').addEventListener('click', () => {
-    state.isVideoOpen = false;
-    document.getElementById('player-video-drawer').classList.remove('open');
-  });
 
   // Search interactions
   const searchInput = document.getElementById('search-input');
@@ -1697,6 +2529,31 @@ document.addEventListener('DOMContentLoaded', () => {
     state.faceModelsLoaded = false;
   });
 
+  // Initialize and bind Server URL settings
+  const serverUrlInput = document.getElementById('settings-server-url');
+  const saveServerUrlBtn = document.getElementById('btn-save-server-url');
+  if (serverUrlInput && saveServerUrlBtn) {
+    const saved = localStorage.getItem('moodbeats_server_url');
+    if (saved) {
+      serverUrlInput.value = saved;
+    } else {
+      serverUrlInput.value = window.location.origin;
+    }
+
+    saveServerUrlBtn.addEventListener('click', () => {
+      let val = serverUrlInput.value.trim();
+      if (val) {
+        val = val.replace(/\/$/, '');
+        localStorage.setItem('moodbeats_server_url', val);
+        alert('Server URL saved successfully!\n' + val);
+      } else {
+        localStorage.removeItem('moodbeats_server_url');
+        serverUrlInput.value = window.location.origin;
+        alert('Server URL reset to default!');
+      }
+    });
+  }
+
   // Check URL parameters for remote phone scanner mode
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get('session');
@@ -1750,4 +2607,34 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
   }, 3000);
+
+  // Register PWA Service Worker
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then((reg) => console.log('[MoodBeats] Service Worker registered with scope:', reg.scope))
+        .catch((err) => console.error('[MoodBeats] Service Worker registration failed:', err));
+    });
+  }
+
+  // Expose global MoodBeats controls for native Android bridge
+  window.MoodBeats = {
+    play: () => {
+      if (ytPlayer && !state.isPlaying) togglePlayPause();
+    },
+    pause: () => {
+      if (ytPlayer && state.isPlaying) togglePlayPause();
+    },
+    next: () => {
+      playNext();
+    },
+    prev: () => {
+      playPrev();
+    },
+    seekTo: (time) => {
+      if (ytPlayer && typeof ytPlayer.seekTo === 'function') {
+        ytPlayer.seekTo(time, true);
+      }
+    }
+  };
 });
