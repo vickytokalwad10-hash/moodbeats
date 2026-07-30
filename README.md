@@ -15,7 +15,6 @@ MoodBeats is a modern, responsive single-page web application that curates perso
   - Don't have a webcam on your laptop? Scan the dynamic pairing QR code on your computer screen to connect your phone camera.
   - Scan your face from your phone, and the playlist starts playing on your laptop speakers in real-time.
 - **Floating Spotify-Style Media Player:** Supports direct playback of tracks via overlay controls (Play, Pause, Skip, and Close).
-- **TV/Video Drawer Mode:** Slide up the drawer to watch the official YouTube music video inside the application.
 - **Searchable Archive:** Type search queries or select genre tags (*Pop, Rock, EDM, Bollywood, Lofi, etc.*) to search, filter, and stream any of the 90+ curated tracks.
 - **History Log:** View a chronological timeline of your scanned moods and jump back to previous states.
 - **Dual Themes:** Clean toggling between dark mode and light mode.
