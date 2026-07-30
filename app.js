@@ -1,9 +1,3 @@
-// MoodBeats Application Logic
-
-// ==========================================
-// 1. Playlists Dataset with Direct Video IDs
-// ==========================================
-// Indian / Hindi-only playlists — shown after face scan or text mood detection
 const INDIAN_PLAYLISTS = {
   Happy: [
     { title: "Dil Chahta Hai", artist: "Shankar-Ehsaan-Loy", genre: "Bollywood Pop", videoId: "p092kMhCaw8" },
