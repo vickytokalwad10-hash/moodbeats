@@ -249,10 +249,259 @@ const state = {
   
   // Search parameters
   searchMode: 'local',
-  ytSearchTimeout: null
+  ytSearchTimeout: null,
+
+  // JioSaavn player state
+  saavnAudio: null,          // HTMLAudioElement for JioSaavn streaming
+  saavnCurrentSong: null,    // Currently playing JioSaavn song object
+  saavnIsPlaying: false,
+  saavnSearchResults: [],
+  saavnSearchQuery: ''
 };
 
 // ==========================================
+// 2b. JioSaavn API Integration
+// ==========================================
+const SAAVN_API_HOSTS = [
+  'https://saavn.sumit.co',
+  'https://jiosaavn-api-privatecvc2.vercel.app',
+];
+
+let saavnApiBase = SAAVN_API_HOSTS[0];
+
+async function saavnFetch(path) {
+  // Try each host until one works
+  for (const host of SAAVN_API_HOSTS) {
+    try {
+      const res = await fetch(`${host}${path}`, { signal: AbortSignal.timeout(8000) });
+      if (res.ok) {
+        saavnApiBase = host;
+        return await res.json();
+      }
+    } catch (e) { /* try next */ }
+  }
+  throw new Error('JioSaavn API unavailable. Check your internet connection.');
+}
+
+// Search songs on JioSaavn
+async function saavnSearchSongs(query, limit = 20) {
+  const encoded = encodeURIComponent(query);
+  const data = await saavnFetch(`/api/search/songs?query=${encoded}&page=1&limit=${limit}`);
+  // API returns { data: { results: [...] } }
+  const results = data?.data?.results || data?.results || [];
+  return results.map(s => ({
+    id: s.id,
+    title: s.name || s.title || 'Unknown',
+    artist: (s.artists?.primary?.map(a => a.name).join(', ')) || s.primaryArtists || 'Unknown Artist',
+    album: s.album?.name || s.album || '',
+    duration: s.duration || 0,
+    image: s.image?.[2]?.url || s.image?.[1]?.url || s.image?.[0]?.url || s.image || '',
+    downloadUrl: s.downloadUrl?.[4]?.url || s.downloadUrl?.[3]?.url || s.downloadUrl?.[2]?.url || null,
+    // Some API versions put download URLs differently
+    streamUrl: s.more_info?.encrypted_media_url || null
+  }));
+}
+
+// Get a single song's streaming URL by ID
+async function saavnGetSongUrl(songId) {
+  const data = await saavnFetch(`/api/songs/${songId}`);
+  const song = data?.data?.[0] || data?.[0] || data;
+  const urls = song?.downloadUrl || song?.more_info?.encrypted_media_url;
+  if (Array.isArray(urls)) {
+    return urls[4]?.url || urls[3]?.url || urls[2]?.url || urls[0]?.url;
+  }
+  return urls || null;
+}
+
+// Play a JioSaavn song using the <audio> element
+function saavnPlaySong(song) {
+  if (!song?.downloadUrl && !song?.streamUrl) {
+    showToast('⚠️ Stream URL not available for this song');
+    return;
+  }
+
+  const url = song.downloadUrl || song.streamUrl;
+
+  // Stop YouTube player if running
+  if (typeof ytPlayer !== 'undefined' && ytPlayer?.pauseVideo) {
+    try { ytPlayer.pauseVideo(); } catch(e) {}
+  }
+
+  // Reuse or create audio element
+  if (!state.saavnAudio) {
+    state.saavnAudio = new Audio();
+    state.saavnAudio.preload = 'metadata';
+
+    state.saavnAudio.addEventListener('ended', () => {
+      state.saavnIsPlaying = false;
+      updateSaavnPlayerUI(false);
+      // Auto-play next in search results
+      const idx = state.saavnSearchResults.findIndex(s => s.id === state.saavnCurrentSong?.id);
+      if (idx >= 0 && idx < state.saavnSearchResults.length - 1) {
+        saavnPlaySong(state.saavnSearchResults[idx + 1]);
+      }
+    });
+
+    state.saavnAudio.addEventListener('error', (e) => {
+      showToast('⚠️ Could not stream this song. Trying next...');
+      state.saavnIsPlaying = false;
+      updateSaavnPlayerUI(false);
+    });
+
+    state.saavnAudio.addEventListener('timeupdate', updateSaavnProgress);
+  }
+
+  state.saavnAudio.src = url;
+  state.saavnCurrentSong = song;
+  state.saavnIsPlaying = true;
+  state.saavnAudio.play().catch(e => {
+    showToast('⚠️ Playback blocked. Tap play to start.');
+    state.saavnIsPlaying = false;
+  });
+
+  updateSaavnPlayerUI(true);
+
+  // Show the mini player bar
+  const miniBar = document.getElementById('saavn-mini-bar');
+  if (miniBar) miniBar.style.display = 'block';
+
+  // Update media session (lock screen controls)
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      artwork: song.image ? [{ src: song.image, sizes: '500x500', type: 'image/jpeg' }] : []
+    });
+    navigator.mediaSession.setActionHandler('play', () => saavnTogglePlay());
+    navigator.mediaSession.setActionHandler('pause', () => saavnTogglePlay());
+    navigator.mediaSession.setActionHandler('nexttrack', () => saavnNext());
+    navigator.mediaSession.setActionHandler('previoustrack', () => saavnPrev());
+  }
+}
+
+function saavnTogglePlay() {
+  if (!state.saavnAudio) return;
+  if (state.saavnIsPlaying) {
+    state.saavnAudio.pause();
+    state.saavnIsPlaying = false;
+  } else {
+    state.saavnAudio.play();
+    state.saavnIsPlaying = true;
+  }
+  updateSaavnPlayerUI(state.saavnIsPlaying);
+}
+
+function saavnNext() {
+  const idx = state.saavnSearchResults.findIndex(s => s.id === state.saavnCurrentSong?.id);
+  if (idx >= 0 && idx < state.saavnSearchResults.length - 1) {
+    saavnPlaySong(state.saavnSearchResults[idx + 1]);
+  }
+}
+
+function saavnPrev() {
+  const idx = state.saavnSearchResults.findIndex(s => s.id === state.saavnCurrentSong?.id);
+  if (idx > 0) {
+    saavnPlaySong(state.saavnSearchResults[idx - 1]);
+  }
+}
+
+function updateSaavnProgress() {
+  const bar = document.getElementById('saavn-progress-bar');
+  const cur = document.getElementById('saavn-current-time');
+  const dur = document.getElementById('saavn-duration');
+  if (!state.saavnAudio || !bar) return;
+  const pct = state.saavnAudio.duration ? (state.saavnAudio.currentTime / state.saavnAudio.duration) * 100 : 0;
+  bar.style.width = pct + '%';
+  if (cur) cur.textContent = formatTime(state.saavnAudio.currentTime);
+  if (dur) dur.textContent = formatTime(state.saavnAudio.duration || 0);
+}
+
+function updateSaavnPlayerUI(isPlaying) {
+  const playBtn = document.getElementById('saavn-play-btn');
+  const bar = document.getElementById('saavn-mini-bar');
+  if (playBtn) playBtn.innerHTML = isPlaying
+    ? '<svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><polygon points="5,3 19,12 5,21"/></svg>';
+  if (bar && state.saavnCurrentSong) bar.classList.add('active');
+
+  // Update artwork + title in the saavn player bar
+  const art = document.getElementById('saavn-bar-art');
+  const title = document.getElementById('saavn-bar-title');
+  const artist = document.getElementById('saavn-bar-artist');
+  if (state.saavnCurrentSong) {
+    if (art) art.src = state.saavnCurrentSong.image || 'icon.png';
+    if (title) title.textContent = state.saavnCurrentSong.title;
+    if (artist) artist.textContent = state.saavnCurrentSong.artist;
+  }
+}
+
+function formatTime(secs) {
+  if (!secs || isNaN(secs)) return '0:00';
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// Render search results in the search view
+function renderSaavnResults(songs) {
+  const container = document.getElementById('saavn-results-list');
+  const empty = document.getElementById('saavn-empty-state');
+  const loading = document.getElementById('saavn-loading');
+  if (loading) loading.style.display = 'none';
+  if (!container) return;
+
+  if (!songs.length) {
+    container.innerHTML = '';
+    if (empty) empty.style.display = 'flex';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  container.innerHTML = songs.map((song, i) => `
+    <div class="saavn-track-row" onclick="saavnPlaySong(state.saavnSearchResults[${i}])" id="saavn-track-${song.id}">
+      <img class="saavn-track-art" src="${song.image || 'icon.png'}" onerror="this.src='icon.png'" loading="lazy">
+      <div class="saavn-track-info">
+        <div class="saavn-track-title">${escapeHtml(song.title)}</div>
+        <div class="saavn-track-artist">${escapeHtml(song.artist)}</div>
+      </div>
+      <div class="saavn-track-duration">${formatTime(song.duration)}</div>
+      <button class="saavn-track-play-btn" onclick="event.stopPropagation(); saavnPlaySong(state.saavnSearchResults[${i}])">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><polygon points="5,3 19,12 5,21"/></svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Handle search input
+let saavnSearchTimer = null;
+async function onSaavnSearch(query) {
+  if (!query.trim()) {
+    document.getElementById('saavn-results-list').innerHTML = '';
+    const empty = document.getElementById('saavn-empty-state');
+    if (empty) { empty.style.display = 'flex'; empty.querySelector('p').textContent = 'Search for any song above'; }
+    return;
+  }
+  const loading = document.getElementById('saavn-loading');
+  const empty = document.getElementById('saavn-empty-state');
+  if (loading) loading.style.display = 'flex';
+  if (empty) empty.style.display = 'none';
+
+  try {
+    const results = await saavnSearchSongs(query);
+    state.saavnSearchResults = results;
+    state.saavnSearchQuery = query;
+    renderSaavnResults(results);
+  } catch(e) {
+    if (loading) loading.style.display = 'none';
+    showToast('⚠️ Search failed: ' + e.message);
+  }
+}
+
 // 3. Keyword / Sentiment Logic (Text Analysis)
 // ==========================================
 const KEYWORDS = {
@@ -2446,36 +2695,74 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   // Search Mode Segmented Control Toggles
-  const btnLocal = document.getElementById('search-mode-local');
+  const btnLocal   = document.getElementById('search-mode-local');
   const btnYoutube = document.getElementById('search-mode-youtube');
-  const genreChipsContainer = document.querySelector('.genre-categories-container');
-  
-  if (btnLocal && btnYoutube) {
-    btnLocal.addEventListener('click', () => {
-      if (state.searchMode === 'local') return;
-      state.searchMode = 'local';
-      btnLocal.classList.add('active');
-      btnYoutube.classList.remove('active');
-      searchInput.placeholder = "Search local library...";
-      if (genreChipsContainer) genreChipsContainer.style.display = 'flex';
-      searchInput.value = '';
-      clearSearchBtn.style.display = 'none';
-      filterSongs();
-    });
-    
-    btnYoutube.addEventListener('click', () => {
-      if (state.searchMode === 'youtube') return;
-      state.searchMode = 'youtube';
-      btnYoutube.classList.add('active');
-      btnLocal.classList.remove('active');
-      searchInput.placeholder = "Search YouTube globally...";
-      if (genreChipsContainer) genreChipsContainer.style.display = 'none';
-      searchInput.value = '';
-      clearSearchBtn.style.display = 'none';
-      renderSearchResults([]);
-    });
+  const btnSaavn   = document.getElementById('search-mode-saavn');
+  const saavnBar   = document.getElementById('saavn-search-bar-wrapper');
+  const localBar   = document.getElementById('local-search-bar-wrapper');
+  const saavnResults  = document.getElementById('saavn-results-list');
+  const saavnLoading  = document.getElementById('saavn-loading');
+  const saavnEmpty    = document.getElementById('saavn-empty-state');
+  const localResults  = document.getElementById('search-results-container');
+  const genreChipsEl  = document.getElementById('genre-chips');
+
+  function switchToSaavn() {
+    state.searchMode = 'saavn';
+    if (btnSaavn)   btnSaavn.classList.add('active');
+    if (btnLocal)   btnLocal.classList.remove('active');
+    if (btnYoutube) btnYoutube.classList.remove('active');
+    if (saavnBar)   saavnBar.style.display = 'flex';
+    if (localBar)   localBar.style.display = 'none';
+    if (saavnResults) saavnResults.style.display = 'flex';
+    if (saavnEmpty)   saavnEmpty.style.display = state.saavnSearchResults.length ? 'none' : 'flex';
+    if (localResults) localResults.style.display = 'none';
+    if (genreChipsEl) genreChipsEl.style.display = 'none';
+    document.getElementById('yt-search-status').style.display = 'none';
   }
-  
+
+  function switchToLocal() {
+    if (state.searchMode === 'local') return;
+    state.searchMode = 'local';
+    if (btnLocal)   btnLocal.classList.add('active');
+    if (btnSaavn)   btnSaavn.classList.remove('active');
+    if (btnYoutube) btnYoutube.classList.remove('active');
+    if (saavnBar)   saavnBar.style.display = 'none';
+    if (localBar)   localBar.style.display = 'flex';
+    if (saavnResults) saavnResults.style.display = 'none';
+    if (saavnEmpty)   saavnEmpty.style.display = 'none';
+    if (localResults) localResults.style.display = 'grid';
+    if (genreChipsEl) genreChipsEl.style.display = 'flex';
+    searchInput.placeholder = 'Search local library...';
+    searchInput.value = '';
+    clearSearchBtn.style.display = 'none';
+    filterSongs();
+  }
+
+  function switchToYoutube() {
+    if (state.searchMode === 'youtube') return;
+    state.searchMode = 'youtube';
+    if (btnYoutube) btnYoutube.classList.add('active');
+    if (btnSaavn)   btnSaavn.classList.remove('active');
+    if (btnLocal)   btnLocal.classList.remove('active');
+    if (saavnBar)   saavnBar.style.display = 'none';
+    if (localBar)   localBar.style.display = 'flex';
+    if (saavnResults) saavnResults.style.display = 'none';
+    if (saavnEmpty)   saavnEmpty.style.display = 'none';
+    if (localResults) localResults.style.display = 'grid';
+    if (genreChipsEl) genreChipsEl.style.display = 'none';
+    searchInput.placeholder = 'Search YouTube globally...';
+    searchInput.value = '';
+    clearSearchBtn.style.display = 'none';
+    renderSearchResults([]);
+  }
+
+  if (btnSaavn)   btnSaavn.addEventListener('click', switchToSaavn);
+  if (btnLocal)   btnLocal.addEventListener('click', switchToLocal);
+  if (btnYoutube) btnYoutube.addEventListener('click', switchToYoutube);
+
+  // Default to JioSaavn mode on app load
+  switchToSaavn();
+
   // Genre chip toggles
   const chips = document.querySelectorAll('.genre-chip');
   chips.forEach(chip => {

@@ -311,35 +311,63 @@
       <section id="view-search" class="view">
         <div class="screen-title-area">
           <h2>Search Music</h2>
-          <p>Find and play any song from our library or search YouTube globally.</p>
+          <p>Search 50 million+ songs on JioSaavn — play instantly, no login needed.</p>
         </div>
 
-        <!-- Search Mode Toggle Segmented Control -->
+        <!-- Search Mode Toggle -->
         <div class="search-mode-toggle glass">
-          <button class="search-toggle-btn active" id="search-mode-local">
-            <i data-lucide="library" style="width: 14px; height: 14px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i>
+          <button class="search-toggle-btn" id="search-mode-local">
+            <i data-lucide="library" style="width:14px;height:14px;margin-right:4px;display:inline-block;vertical-align:middle;"></i>
             <span>Library</span>
           </button>
+          <button class="search-toggle-btn active" id="search-mode-saavn">
+            <span style="font-weight:700;margin-right:4px;color:#e91e63;">♫</span>
+            <span>JioSaavn</span>
+          </button>
           <button class="search-toggle-btn" id="search-mode-youtube">
-            <i data-lucide="youtube" style="width: 14px; height: 14px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i>
-            <span>YouTube Search</span>
+            <i data-lucide="youtube" style="width:14px;height:14px;margin-right:4px;display:inline-block;vertical-align:middle;"></i>
+            <span>YouTube</span>
           </button>
         </div>
 
-        <div class="search-bar-wrapper glass">
+        <!-- JioSaavn Search Bar -->
+        <div class="search-bar-wrapper glass" id="saavn-search-bar-wrapper">
+          <i data-lucide="search" class="search-input-icon"></i>
+          <input type="text" id="saavn-search-input" placeholder="Search any song, artist, album..." autocomplete="off"
+            oninput="clearTimeout(saavnSearchTimer); saavnSearchTimer = setTimeout(() => onSaavnSearch(this.value), 400)">
+        </div>
+
+        <!-- Local/YouTube Search Bar (hidden by default now) -->
+        <div class="search-bar-wrapper glass" id="local-search-bar-wrapper" style="display:none;">
           <i data-lucide="search" class="search-input-icon"></i>
           <input type="text" id="search-input" placeholder="Search local library...">
           <button id="btn-clear-search" style="display: none;"><i data-lucide="x"></i></button>
         </div>
 
-        <!-- YouTube Search Status Indicator -->
+        <!-- YouTube Search Status -->
         <div class="yt-search-loading" id="yt-search-status" style="display: none; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px; color: var(--text-muted); font-size: 13px;">
           <div class="spinner" style="width: 16px; height: 16px; border-width: 2px; margin-bottom: 0; border-top-color: var(--accent-color);"></div>
           <span>Searching YouTube...</span>
         </div>
 
-        <!-- Category/Genre filter chips -->
-        <div class="genre-categories-container">
+        <!-- JioSaavn Loading -->
+        <div id="saavn-loading" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:40px; gap:12px;">
+          <div class="spinner" style="width:32px;height:32px;border-width:3px;border-top-color:#e91e63;"></div>
+          <span style="color:var(--text-muted);font-size:13px;">Searching JioSaavn...</span>
+        </div>
+
+        <!-- JioSaavn Empty State -->
+        <div id="saavn-empty-state" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; gap:12px; text-align:center;">
+          <div style="font-size:48px;">🎵</div>
+          <p style="color:var(--text-muted); font-size:15px;">Search for any song above</p>
+          <p style="color:var(--text-muted); font-size:12px; opacity:0.7;">Powered by JioSaavn — 50M+ songs, free, no login</p>
+        </div>
+
+        <!-- JioSaavn Results -->
+        <div id="saavn-results-list" style="display:flex; flex-direction:column; gap:4px; padding-bottom:160px;"></div>
+
+        <!-- Category chips (shown only for local/yt mode) -->
+        <div class="genre-categories-container" id="genre-chips" style="display:none;">
           <span class="genre-chip" data-genre="Pop">Pop</span>
           <span class="genre-chip" data-genre="Rock">Rock</span>
           <span class="genre-chip" data-genre="EDM">EDM / Electronic</span>
@@ -351,10 +379,8 @@
           <span class="genre-chip" data-genre="Bollywood">Bollywood</span>
         </div>
 
-        <!-- Search Results Grid -->
-        <div class="songs-grid" id="search-results-container">
-          <!-- Populated by all songs initially, and dynamically filtered -->
-        </div>
+        <!-- Local Search Results -->
+        <div class="songs-grid" id="search-results-container" style="display:none;"></div>
       </section>
 
       <!-- 5. History / Library View -->
@@ -681,6 +707,40 @@
         </a>
       </div>
 
+    </div>
+
+    <!-- JioSaavn Mini Player Bar (above bottom nav) -->
+    <div id="saavn-mini-bar" style="display:none; position:fixed; bottom:65px; left:0; right:0; z-index:999;
+      background:linear-gradient(135deg,#1a1a2e,#16213e); color:#fff; padding:10px 16px;
+      box-shadow:0 -2px 20px rgba(233,30,99,0.3); border-top:1px solid rgba(233,30,99,0.3);">
+      <div style="display:flex; align-items:center; gap:12px; max-width:600px; margin:0 auto;">
+        <img id="saavn-bar-art" src="icon.png" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;">
+        <div style="flex:1; min-width:0;">
+          <div id="saavn-bar-title" style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">—</div>
+          <div id="saavn-bar-artist" style="font-size:12px;opacity:0.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">JioSaavn</div>
+          <!-- Progress bar -->
+          <div style="height:3px;background:rgba(255,255,255,0.2);border-radius:2px;margin-top:6px;cursor:pointer;"
+            onclick="if(state.saavnAudio){state.saavnAudio.currentTime=(event.offsetX/this.offsetWidth)*state.saavnAudio.duration}">
+            <div id="saavn-progress-bar" style="height:100%;background:#e91e63;border-radius:2px;width:0%;transition:width 0.5s linear;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;opacity:0.6;margin-top:2px;">
+            <span id="saavn-current-time">0:00</span>
+            <span id="saavn-duration">0:00</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+          <button onclick="saavnPrev()" style="background:none;border:none;color:#fff;cursor:pointer;padding:6px;opacity:0.8;">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><polygon points="19,3 5,12 19,21"/><rect x="3" y="3" width="2" height="18"/></svg>
+          </button>
+          <button id="saavn-play-btn" onclick="saavnTogglePlay()" style="background:#e91e63;border:none;color:#fff;cursor:pointer;
+            width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><polygon points="5,3 19,12 5,21"/></svg>
+          </button>
+          <button onclick="saavnNext()" style="background:none;border:none;color:#fff;cursor:pointer;padding:6px;opacity:0.8;">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><polygon points="5,3 19,12 5,21"/><rect x="19" y="3" width="2" height="18"/></svg>
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Bottom Navigation Bar -->
