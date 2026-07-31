@@ -28,7 +28,17 @@ public class MainActivity extends BridgeActivity {
         // This shows the system dialog so the user grants it BEFORE trying to scan.
         requestCameraPermissionIfNeeded();
 
-        // ── Step 2: Wrap (not replace) Capacitor's WebChromeClient ──
+        // ── Step 2: Configure WebView settings for camera/media access ──
+        android.webkit.WebSettings settings = getBridge().getWebView().getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setMediaPlaybackRequiresUserGesture(false); // Critical for autoplay & camera
+        settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
+        // Enable hardware acceleration at the WebView level
+        getBridge().getWebView().setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null);
+
+        // ── Step 3: Wrap (not replace) Capacitor's WebChromeClient ──
         // We need to keep Capacitor's client for its own internal handling,
         // but we MUST intercept onPermissionRequest to grant camera access
         // to the WebView's getUserMedia call.
