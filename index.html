@@ -49,8 +49,8 @@
   <link rel="apple-touch-icon" href="icon.png">
   <meta name="theme-color" content="#a855f7">
   
-  <!-- face-api.js CDN — must be async (not defer) so it loads before app.js needs it -->
-  <script async src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js" id="faceapi-script"></script>
+  <!-- face-api.js — loaded locally so face scan works offline in the APK -->
+  <script src="face-api.min.js"></script>
   
   <!-- YouTube IFrame Player API -->
   <script src="https://www.youtube.com/iframe_api"></script>
@@ -307,96 +307,162 @@
         </div>
       </section>
 
-      <!-- Search View -->
+      <!-- 4. Search View -->
       <section id="view-search" class="view">
         <div class="screen-title-area">
           <h2>Search Music</h2>
-          <p>Search 50 million+ songs on JioSaavn — play instantly, no login needed.</p>
+          <p>Search songs, artists, YouTube videos, and playlists instantly.</p>
         </div>
 
-        <!-- Search Mode Toggle -->
-        <div class="search-mode-toggle glass">
-          <button class="search-toggle-btn" id="search-mode-local">
-            <i data-lucide="library" style="width:14px;height:14px;margin-right:4px;display:inline-block;vertical-align:middle;"></i>
-            <span>Library</span>
-          </button>
-          <button class="search-toggle-btn active" id="search-mode-saavn">
-            <span style="font-weight:700;margin-right:4px;color:#e91e63;">♫</span>
-            <span>JioSaavn</span>
-          </button>
-          <button class="search-toggle-btn" id="search-mode-youtube">
-            <i data-lucide="youtube" style="width:14px;height:14px;margin-right:4px;display:inline-block;vertical-align:middle;"></i>
-            <span>YouTube</span>
-          </button>
-        </div>
-
-        <!-- JioSaavn Search Bar -->
-        <div class="search-bar-wrapper glass" id="saavn-search-bar-wrapper">
+        <!-- Unified Normal Search Bar -->
+        <div class="search-bar-wrapper glass" id="unified-search-bar-wrapper">
           <i data-lucide="search" class="search-input-icon"></i>
-          <input type="text" id="saavn-search-input" placeholder="Search any song, artist, album..." autocomplete="off"
-            oninput="clearTimeout(saavnSearchTimer); saavnSearchTimer = setTimeout(() => onSaavnSearch(this.value), 400)">
-        </div>
-
-        <!-- Local/YouTube Search Bar (hidden by default now) -->
-        <div class="search-bar-wrapper glass" id="local-search-bar-wrapper" style="display:none;">
-          <i data-lucide="search" class="search-input-icon"></i>
-          <input type="text" id="search-input" placeholder="Search local library...">
+          <input type="text" id="search-input" placeholder="Search songs, artists, playlists..." autocomplete="off">
           <button id="btn-clear-search" style="display: none;"><i data-lucide="x"></i></button>
         </div>
 
-        <!-- YouTube Search Status -->
-        <div class="yt-search-loading" id="yt-search-status" style="display: none; align-items: center; justify-content: center; gap: 8px; margin-bottom: 15px; color: var(--text-muted); font-size: 13px;">
-          <div class="spinner" style="width: 16px; height: 16px; border-width: 2px; margin-bottom: 0; border-top-color: var(--accent-color);"></div>
-          <span>Searching YouTube...</span>
+        <!-- Filter pills (Spotify style) -->
+        <div class="search-filter-pills" id="search-filter-pills">
+          <button class="filter-pill active" data-filter="all">All</button>
+          <button class="filter-pill" data-filter="artists">Artists</button>
+          <button class="filter-pill" data-filter="songs">Songs</button>
+          <button class="filter-pill" data-filter="youtube">YouTube</button>
+          <button class="filter-pill" data-filter="playlists">Playlists</button>
         </div>
 
-        <!-- JioSaavn Loading -->
-        <div id="saavn-loading" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:40px; gap:12px;">
-          <div class="spinner" style="width:32px;height:32px;border-width:3px;border-top-color:#e91e63;"></div>
-          <span style="color:var(--text-muted);font-size:13px;">Searching JioSaavn...</span>
+        <!-- Global Search Loading State -->
+        <div id="search-loading-state" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:40px; gap:12px;">
+          <div class="spinner" style="width:32px;height:32px;border-width:3px;border-top-color:var(--accent-color);"></div>
+          <span style="color:var(--text-muted);font-size:13px;">Searching songs & artists...</span>
         </div>
 
-        <!-- JioSaavn Empty State -->
-        <div id="saavn-empty-state" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; gap:12px; text-align:center;">
-          <div style="font-size:48px;">🎵</div>
-          <p style="color:var(--text-muted); font-size:15px;">Search for any song above</p>
-          <p style="color:var(--text-muted); font-size:12px; opacity:0.7;">Powered by JioSaavn — 50M+ songs, free, no login</p>
+        <!-- Initial Search Empty State -->
+        <div id="search-empty-state" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:50px 20px; gap:12px; text-align:center;">
+          <div style="font-size:48px;">🔍</div>
+          <h3 style="font-size:18px; font-weight:700;">Find your favorite sound</h3>
+          <p style="color:var(--text-muted); font-size:14px; max-width:320px;">Search for songs, artists like Arijit Singh or Taylor Swift, YouTube videos, or custom playlists.</p>
         </div>
 
-        <!-- JioSaavn Results -->
-        <div id="saavn-results-list" style="display:flex; flex-direction:column; gap:4px; padding-bottom:160px;"></div>
-
-        <!-- Category chips (shown only for local/yt mode) -->
-        <div class="genre-categories-container" id="genre-chips" style="display:none;">
-          <span class="genre-chip" data-genre="Pop">Pop</span>
-          <span class="genre-chip" data-genre="Rock">Rock</span>
-          <span class="genre-chip" data-genre="EDM">EDM / Electronic</span>
-          <span class="genre-chip" data-genre="Lofi">Lofi</span>
-          <span class="genre-chip" data-genre="Alternative">Alternative</span>
-          <span class="genre-chip" data-genre="Metal">Metal</span>
-          <span class="genre-chip" data-genre="Soul">Soul / R&B</span>
-          <span class="genre-chip" data-genre="Classical">Classical</span>
-          <span class="genre-chip" data-genre="Bollywood">Bollywood</span>
+        <!-- Search No Results State (prevents blank screen when 0 results return) -->
+        <div id="search-no-results-state" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:50px 20px; gap:12px; text-align:center;">
+          <div style="font-size:44px;">🎶</div>
+          <h3 style="font-size:18px; font-weight:700;">No results found</h3>
+          <p id="search-no-results-text" style="color:var(--text-muted); font-size:14px; max-width:320px;">Try searching for song titles, artist names like Arijit Singh, or movie albums.</p>
         </div>
 
-        <!-- Local Search Results -->
-        <div class="songs-grid" id="search-results-container" style="display:none;"></div>
+        <!-- Combined Search Results Content -->
+        <div id="search-results-content" style="display:none; flex-direction:column; gap:24px; padding-bottom:160px;">
+          
+          <!-- 1. Artists Section (Spotify style) -->
+          <div class="search-section" id="section-artists">
+            <h3 class="search-section-title">Artists</h3>
+            <div class="artists-h-scroll" id="search-artists-list"></div>
+          </div>
+
+          <!-- 2. Songs Section (JioSaavn / Audio Stream) -->
+          <div class="search-section" id="section-songs">
+            <h3 class="search-section-title">Songs</h3>
+            <div class="tracks-list" id="search-songs-list"></div>
+          </div>
+
+          <!-- 3. YouTube Videos Section -->
+          <div class="search-section" id="section-youtube">
+            <h3 class="search-section-title">YouTube Videos</h3>
+            <div class="tracks-list" id="search-youtube-list"></div>
+          </div>
+
+          <!-- 4. Playlists Section -->
+          <div class="search-section" id="section-playlists">
+            <h3 class="search-section-title">Playlists</h3>
+            <div class="playlists-grid" id="search-playlists-list"></div>
+          </div>
+
+        </div>
       </section>
 
-      <!-- 5. History / Library View -->
-      <section id="view-history" class="view">
-        <div class="screen-title-area">
-          <h2>Vibe Library</h2>
-          <p>Review your recent mood scans and corresponding soundtracks.</p>
+      <!-- 5. Artist Profile Detail View -->
+      <section id="view-artist-detail" class="view">
+        <div class="back-btn-wrapper">
+          <button class="btn-back" id="btn-artist-back"><i data-lucide="chevron-left"></i> Back</button>
         </div>
 
-        <div class="history-large-list" id="history-large-list">
-          <!-- Dynamically populated list of detailed history items -->
-          <div class="empty-state-box glass">
-            <i data-lucide="music-2" class="empty-state-icon"></i>
-            <h3>No mood logs yet</h3>
-            <p>Generate a playlist via text or webcam to log your first mood!</p>
+        <div class="artist-hero-card glass">
+          <img id="artist-hero-art" src="icon.png" class="artist-hero-img" alt="Artist Avatar">
+          <div class="artist-hero-info">
+            <span class="artist-verified-tag"><i data-lucide="check-circle-2"></i> Verified Artist</span>
+            <h1 class="artist-hero-title" id="artist-hero-name">Artist Name</h1>
+            <p class="artist-hero-sub" id="artist-hero-meta">Popular Artist</p>
           </div>
+        </div>
+
+        <div class="artist-actions-bar">
+          <button class="btn btn-primary" id="btn-artist-play-all">
+            <i data-lucide="play" fill="currentColor"></i>
+            <span>Play All</span>
+          </button>
+        </div>
+
+        <div class="artist-content-section" style="margin-top: 20px;">
+          <h3 class="section-title">Popular Tracks</h3>
+          <div class="tracks-list" id="artist-top-tracks-list"></div>
+        </div>
+      </section>
+
+      <!-- 6. Playlist Detail View -->
+      <section id="view-playlist-detail" class="view">
+        <div class="back-btn-wrapper">
+          <button class="btn-back" id="btn-playlist-back"><i data-lucide="chevron-left"></i> Back</button>
+        </div>
+
+        <div class="playlist-hero-card glass">
+          <div class="playlist-cover-art" id="playlist-cover-art">
+            <i data-lucide="music-3"></i>
+          </div>
+          <div class="playlist-hero-info">
+            <span class="playlist-badge">PLAYLIST</span>
+            <h1 class="playlist-hero-title" id="playlist-hero-name">Playlist Name</h1>
+            <p class="playlist-hero-meta" id="playlist-hero-desc">0 tracks</p>
+          </div>
+        </div>
+
+        <div class="playlist-actions-bar">
+          <button class="btn btn-primary" id="btn-playlist-play">
+            <i data-lucide="play" fill="currentColor"></i>
+            <span>Play</span>
+          </button>
+          <button class="btn btn-secondary btn-icon" id="btn-playlist-delete" title="Delete Playlist" style="color:#ef4444;">
+            <i data-lucide="trash-2"></i>
+          </button>
+        </div>
+
+        <div class="playlist-content-section" style="margin-top:20px;">
+          <div class="tracks-list" id="playlist-tracks-list"></div>
+        </div>
+      </section>
+
+      <!-- 7. Your Library View -->
+      <section id="view-history" class="view">
+        <div class="screen-title-area" style="display:flex; justify-content:space-between; align-items:flex-end;">
+          <div>
+            <h2>Your Library</h2>
+            <p>Playlists, saved tracks, and mood logs.</p>
+          </div>
+          <button class="btn btn-primary btn-sm" id="btn-lib-new-playlist">
+            <i data-lucide="plus"></i>
+            <span>New Playlist</span>
+          </button>
+        </div>
+
+        <!-- Library Filter Pills -->
+        <div class="search-filter-pills" id="library-filter-pills" style="margin-bottom: 20px;">
+          <button class="lib-pill active" data-lib-filter="all">All</button>
+          <button class="lib-pill" data-lib-filter="playlists">Playlists</button>
+          <button class="lib-pill" data-lib-filter="history">Mood Scans</button>
+        </div>
+
+        <div id="library-content-container">
+          <div class="playlists-grid" id="library-playlists-grid"></div>
+          <div class="history-large-list" id="history-large-list" style="margin-top:20px;"></div>
         </div>
       </section>
 
@@ -717,7 +783,7 @@
         <img id="saavn-bar-art" src="icon.png" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;">
         <div style="flex:1; min-width:0;">
           <div id="saavn-bar-title" style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">—</div>
-          <div id="saavn-bar-artist" style="font-size:12px;opacity:0.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">JioSaavn</div>
+          <div id="saavn-bar-artist" style="font-size:12px;opacity:0.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">MoodBeats Stream</div>
           <!-- Progress bar -->
           <div style="height:3px;background:rgba(255,255,255,0.2);border-radius:2px;margin-top:6px;cursor:pointer;"
             onclick="if(state.saavnAudio){state.saavnAudio.currentTime=(event.offsetX/this.offsetWidth)*state.saavnAudio.duration}">
@@ -743,6 +809,51 @@
       </div>
     </div>
 
+    <!-- Add to Playlist Modal -->
+    <div class="modal-backdrop" id="add-to-playlist-modal" style="display:none;">
+      <div class="modal-box glass">
+        <div class="modal-header">
+          <h3>Add to Playlist</h3>
+          <button class="btn-icon" id="btn-close-add-modal"><i data-lucide="x"></i></button>
+        </div>
+        <div class="song-preview-strip" id="add-modal-song-preview">
+          <img id="add-modal-song-art" src="icon.png" class="mini-track-art" style="width:40px;height:40px;border-radius:8px;object-fit:cover;">
+          <div style="flex:1; min-width:0;">
+            <div id="add-modal-song-title" style="font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Track Name</div>
+            <div id="add-modal-song-artist" style="font-size:12px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Artist</div>
+          </div>
+        </div>
+        <div class="playlists-select-list" id="modal-playlists-list" style="margin-top:15px; display:flex; flex-direction:column; gap:8px; max-height:220px; overflow-y:auto;"></div>
+        <button class="btn btn-secondary" id="btn-modal-create-new-playlist" style="width:100%; margin-top:16px;">
+          <i data-lucide="plus"></i>
+          <span>Create New Playlist</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Create Playlist Modal -->
+    <div class="modal-backdrop" id="create-playlist-modal" style="display:none;">
+      <div class="modal-box glass">
+        <div class="modal-header">
+          <h3>Create Playlist</h3>
+          <button class="btn-icon" id="btn-close-create-modal"><i data-lucide="x"></i></button>
+        </div>
+        <div class="form-group" style="margin-top:15px;">
+          <label style="font-size:12px; color:var(--text-muted); margin-bottom:6px; display:block;">Playlist Name</label>
+          <input type="text" id="create-playlist-name-input" class="search-input" placeholder="e.g., Chill Beats, Workout, Roadtrip" style="width:100%;">
+        </div>
+        <button class="btn btn-primary" id="btn-save-new-playlist" style="width:100%; margin-top:20px;">
+          <span>Create & Save</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast-notification" id="toast-notification" style="display:none;">
+      <i data-lucide="check-circle-2" class="toast-icon"></i>
+      <span id="toast-message">Added to Playlist</span>
+    </div>
+
     <!-- Bottom Navigation Bar -->
     <nav class="bottom-nav">
       <button class="nav-item active" data-target="view-landing" id="nav-home">
@@ -764,7 +875,9 @@
     </nav>
   </div>
   
-  <!-- Script -->
+  <!-- JioSaavn API Service — must load before app.js -->
+  <script src="jiosaavnApi.js"></script>
+  <!-- Main App -->
   <script src="app.js"></script>
 </body>
 </html>

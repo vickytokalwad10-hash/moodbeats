@@ -248,8 +248,17 @@ const state = {
   recentlyPlayedIds: [],     // Tracks last 5 song videoIds to prevent repeats
   
   // Search parameters
-  searchMode: 'local',
+  searchMode: 'unified',
   ytSearchTimeout: null,
+  activeSearchFilter: 'all',
+  activeLibFilter: 'all',
+
+  // User playlists & Spotify-like Library
+  userPlaylists: JSON.parse(localStorage.getItem('moodbeats_user_playlists') || '[]'),
+  currentPlaylistView: null,
+  currentArtistView: null,
+  songToAddModal: null,
+  toastTimeout: null,
 
   // JioSaavn player state
   saavnAudio: null,          // HTMLAudioElement for JioSaavn streaming
@@ -260,7 +269,76 @@ const state = {
 };
 
 // ==========================================
-// 2b. JioSaavn API Integration
+// 2b. Core Helper Functions (HTML escaping, Toast, YouTube Search)
+// ==========================================
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+let toastTimer = null;
+function showToast(msg, duration = 3000) {
+  const toast = document.getElementById('toast-notification');
+  const toastMsg = document.getElementById('toast-message');
+  if (!toast || !toastMsg) return;
+  toastMsg.textContent = msg;
+  toast.style.display = 'flex';
+  void toast.offsetHeight;
+  toast.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => { toast.style.display = 'none'; }, 300);
+  }, duration);
+}
+
+// Global YouTube video fallback search
+async function searchYouTubeGlobally(query) {
+  try {
+    const q = query.trim();
+    if (!q) return [];
+    // Try iTunes API for fast metadata fallback or return formatted search results
+    const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=song&limit=10`, {
+      headers: { 'Accept': 'application/json' }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return (data.results || []).map(r => ({
+        id: 'itunes_' + r.trackId,
+        title: r.trackName,
+        artist: r.artistName,
+        album: r.collectionName || '',
+        duration: Math.round((r.trackTimeMillis || 0) / 1000),
+        image: r.artworkUrl100 ? r.artworkUrl100.replace('100x100bb', '500x500bb') : 'icon.png',
+        downloadUrl: r.previewUrl,
+        streamUrl: r.previewUrl,
+        videoId: null
+      }));
+    }
+  } catch (err) {
+    console.warn('[YouTube Search] Fallback fetch failed:', err);
+  }
+  return [];
+}
+
+function renderSaavnResults(results = []) {
+  if (typeof renderUnifiedSearchResults === 'function') {
+    renderUnifiedSearchResults([], results, [], []);
+  }
+}
+
+// ==========================================
+// 2c. JioSaavn API Integration
 // ==========================================
 const SAAVN_API_HOSTS = [
   'https://saavn.sumit.co',
@@ -269,58 +347,42 @@ const SAAVN_API_HOSTS = [
 
 let saavnApiBase = SAAVN_API_HOSTS[0];
 
+// Delegators to jiosaavnApi.js service (window.JSA)
 async function saavnFetch(path) {
-  // Try each host until one works
-  for (const host of SAAVN_API_HOSTS) {
-    try {
-      const res = await fetch(`${host}${path}`, { signal: AbortSignal.timeout(8000) });
-      if (res.ok) {
-        saavnApiBase = host;
-        return await res.json();
-      }
-    } catch (e) { /* try next */ }
-  }
-  throw new Error('JioSaavn API unavailable. Check your internet connection.');
+  return window.JSA ? window.JSA.fetch(path) : null;
 }
 
-// Search songs on JioSaavn
 async function saavnSearchSongs(query, limit = 20) {
-  const encoded = encodeURIComponent(query);
-  const data = await saavnFetch(`/api/search/songs?query=${encoded}&page=1&limit=${limit}`);
-  // API returns { data: { results: [...] } }
-  const results = data?.data?.results || data?.results || [];
-  return results.map(s => ({
-    id: s.id,
-    title: s.name || s.title || 'Unknown',
-    artist: (s.artists?.primary?.map(a => a.name).join(', ')) || s.primaryArtists || 'Unknown Artist',
-    album: s.album?.name || s.album || '',
-    duration: s.duration || 0,
-    image: s.image?.[2]?.url || s.image?.[1]?.url || s.image?.[0]?.url || s.image || '',
-    downloadUrl: s.downloadUrl?.[4]?.url || s.downloadUrl?.[3]?.url || s.downloadUrl?.[2]?.url || null,
-    // Some API versions put download URLs differently
-    streamUrl: s.more_info?.encrypted_media_url || null
-  }));
+  if (window.JSA) return window.JSA.searchSongs(query, limit);
+  return [];
 }
 
-// Get a single song's streaming URL by ID
+async function saavnSearchArtists(query, limit = 10) {
+  if (window.JSA) return window.JSA.searchArtists(query, limit);
+  return [];
+}
+
+async function saavnGetArtistDetails(artistId) {
+  if (window.JSA) return window.JSA.getArtist(artistId);
+  throw new Error('Music API not available');
+}
+
 async function saavnGetSongUrl(songId) {
-  const data = await saavnFetch(`/api/songs/${songId}`);
-  const song = data?.data?.[0] || data?.[0] || data;
-  const urls = song?.downloadUrl || song?.more_info?.encrypted_media_url;
-  if (Array.isArray(urls)) {
-    return urls[4]?.url || urls[3]?.url || urls[2]?.url || urls[0]?.url;
+  if (window.JSA) {
+    const songs = await window.JSA.searchSongs(songId, 1);
+    return songs[0]?.downloadUrl || null;
   }
-  return urls || null;
+  return null;
 }
 
-// Play a JioSaavn song using the <audio> element
+// Play a song using the <audio> element with automatic quality fallback
 function saavnPlaySong(song) {
-  if (!song?.downloadUrl && !song?.streamUrl) {
+  const url = (window.JSA ? window.JSA.bestStreamUrl(song) : null) || song?.downloadUrl || song?.streamUrl;
+
+  if (!url) {
     showToast('⚠️ Stream URL not available for this song');
     return;
   }
-
-  const url = song.downloadUrl || song.streamUrl;
 
   // Stop YouTube player if running
   if (typeof ytPlayer !== 'undefined' && ytPlayer?.pauseVideo) {
@@ -335,17 +397,28 @@ function saavnPlaySong(song) {
     state.saavnAudio.addEventListener('ended', () => {
       state.saavnIsPlaying = false;
       updateSaavnPlayerUI(false);
-      // Auto-play next in search results
-      const idx = state.saavnSearchResults.findIndex(s => s.id === state.saavnCurrentSong?.id);
-      if (idx >= 0 && idx < state.saavnSearchResults.length - 1) {
-        saavnPlaySong(state.saavnSearchResults[idx + 1]);
+      notifyAndroidBridge('playback', { isPlaying: false, position: 0, duration: 0 });
+      const queue = state.currentPlaylist || state.saavnSearchResults || [];
+      const idx = queue.findIndex(s => s.id === state.saavnCurrentSong?.id);
+      if (idx >= 0 && idx < queue.length - 1) {
+        saavnPlaySong(queue[idx + 1]);
       }
     });
 
-    state.saavnAudio.addEventListener('error', (e) => {
-      showToast('⚠️ Could not stream this song. Trying next...');
-      state.saavnIsPlaying = false;
-      updateSaavnPlayerUI(false);
+    state.saavnAudio.addEventListener('error', () => {
+      const currentUrl = state.saavnAudio.src;
+      const fallbackUrl = (window.JSA && state.saavnCurrentSong) ? window.JSA.nextFallbackUrl(state.saavnCurrentSong, currentUrl) : null;
+      if (fallbackUrl) {
+        console.log('[MoodBeats Audio] Primary stream failed, trying fallback:', fallbackUrl);
+        showToast('🔄 Switching to fallback stream quality...');
+        state.saavnAudio.src = fallbackUrl;
+        state.saavnAudio.play().catch(() => {});
+      } else {
+        showToast('⚠️ Could not stream this song. Skipping...');
+        state.saavnIsPlaying = false;
+        updateSaavnPlayerUI(false);
+        notifyAndroidBridge('playback', { isPlaying: false, position: 0, duration: 0 });
+      }
     });
 
     state.saavnAudio.addEventListener('timeupdate', updateSaavnProgress);
@@ -354,10 +427,24 @@ function saavnPlaySong(song) {
   state.saavnAudio.src = url;
   state.saavnCurrentSong = song;
   state.saavnIsPlaying = true;
-  state.saavnAudio.play().catch(e => {
-    showToast('⚠️ Playback blocked. Tap play to start.');
+  state.saavnAudio.play().then(() => {
+    notifyAndroidBridge('metadata', { title: song.title, artist: song.artist });
+    notifyAndroidBridge('playback', { isPlaying: true, position: 0, duration: song.duration || 0 });
+  }).catch(e => {
+    console.warn('[MoodBeats Audio] play() blocked or failed:', e);
+    showToast('⚠️ Tap play to start playback');
     state.saavnIsPlaying = false;
   });
+
+  // Track recently played
+  if (song && song.title) {
+    addToRecentlyPlayed({
+      id: song.id,
+      title: song.title,
+      artist: song.artist || 'JioSaavn Artist',
+      artwork: song.image || ''
+    });
+  }
 
   updateSaavnPlayerUI(true);
 
@@ -365,12 +452,16 @@ function saavnPlaySong(song) {
   const miniBar = document.getElementById('saavn-mini-bar');
   if (miniBar) miniBar.style.display = 'block';
 
+  // Notify Android Foreground Service Bridge immediately
+  notifyAndroidBridge('metadata', { title: song.title, artist: song.artist });
+  notifyAndroidBridge('playback', { isPlaying: true, position: 0, duration: song.duration || 0 });
+
   // Update media session (lock screen controls)
   if ('mediaSession' in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: song.title,
       artist: song.artist,
-      album: song.album,
+      album: song.album || 'MoodBeats',
       artwork: song.image ? [{ src: song.image, sizes: '500x500', type: 'image/jpeg' }] : []
     });
     navigator.mediaSession.setActionHandler('play', () => saavnTogglePlay());
@@ -386,23 +477,36 @@ function saavnTogglePlay() {
     state.saavnAudio.pause();
     state.saavnIsPlaying = false;
   } else {
-    state.saavnAudio.play();
+    state.saavnAudio.play().catch(e => console.warn('Play failed', e));
     state.saavnIsPlaying = true;
   }
   updateSaavnPlayerUI(state.saavnIsPlaying);
+  notifyAndroidBridge('playback', {
+    isPlaying: state.saavnIsPlaying,
+    position: state.saavnAudio.currentTime || 0,
+    duration: state.saavnAudio.duration || 0
+  });
 }
 
 function saavnNext() {
-  const idx = state.saavnSearchResults.findIndex(s => s.id === state.saavnCurrentSong?.id);
-  if (idx >= 0 && idx < state.saavnSearchResults.length - 1) {
-    saavnPlaySong(state.saavnSearchResults[idx + 1]);
+  const queue = state.saavnSearchResults && state.saavnSearchResults.length > 0 ? state.saavnSearchResults : state.currentPlaylist;
+  if (!queue || queue.length === 0) return;
+  const idx = queue.findIndex(s => s.id === state.saavnCurrentSong?.id);
+  if (idx >= 0 && idx < queue.length - 1) {
+    saavnPlaySong(queue[idx + 1]);
+  } else if (queue.length > 0) {
+    saavnPlaySong(queue[0]); // Loop back to beginning
   }
 }
 
 function saavnPrev() {
-  const idx = state.saavnSearchResults.findIndex(s => s.id === state.saavnCurrentSong?.id);
+  const queue = state.saavnSearchResults && state.saavnSearchResults.length > 0 ? state.saavnSearchResults : state.currentPlaylist;
+  if (!queue || queue.length === 0) return;
+  const idx = queue.findIndex(s => s.id === state.saavnCurrentSong?.id);
   if (idx > 0) {
-    saavnPlaySong(state.saavnSearchResults[idx - 1]);
+    saavnPlaySong(queue[idx - 1]);
+  } else if (queue.length > 0) {
+    saavnPlaySong(queue[queue.length - 1]);
   }
 }
 
@@ -436,45 +540,12 @@ function updateSaavnPlayerUI(isPlaying) {
   }
 }
 
+// formatTime — canonical definition used throughout the app
 function formatTime(secs) {
   if (!secs || isNaN(secs)) return '0:00';
   const m = Math.floor(secs / 60);
   const s = Math.floor(secs % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-// Render search results in the search view
-function renderSaavnResults(songs) {
-  const container = document.getElementById('saavn-results-list');
-  const empty = document.getElementById('saavn-empty-state');
-  const loading = document.getElementById('saavn-loading');
-  if (loading) loading.style.display = 'none';
-  if (!container) return;
-
-  if (!songs.length) {
-    container.innerHTML = '';
-    if (empty) empty.style.display = 'flex';
-    return;
-  }
-  if (empty) empty.style.display = 'none';
-
-  container.innerHTML = songs.map((song, i) => `
-    <div class="saavn-track-row" onclick="saavnPlaySong(state.saavnSearchResults[${i}])" id="saavn-track-${song.id}">
-      <img class="saavn-track-art" src="${song.image || 'icon.png'}" onerror="this.src='icon.png'" loading="lazy">
-      <div class="saavn-track-info">
-        <div class="saavn-track-title">${escapeHtml(song.title)}</div>
-        <div class="saavn-track-artist">${escapeHtml(song.artist)}</div>
-      </div>
-      <div class="saavn-track-duration">${formatTime(song.duration)}</div>
-      <button class="saavn-track-play-btn" onclick="event.stopPropagation(); saavnPlaySong(state.saavnSearchResults[${i}])">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><polygon points="5,3 19,12 5,21"/></svg>
-      </button>
-    </div>
-  `).join('');
-}
-
-function escapeHtml(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // Handle search input
@@ -645,11 +716,17 @@ function navigateTo(viewId) {
   }
   
   const targetView = document.getElementById(viewId);
+  if (!targetView) return;
   targetView.style.display = 'flex';
   void targetView.offsetHeight;
   targetView.classList.add('active');
   
   state.currentView = viewId;
+  if (!state.isPhoneController && !['view-webcam', 'view-phone-controller'].includes(viewId)) {
+    try {
+      localStorage.setItem('moodbeats_last_view', viewId);
+    } catch (e) {}
+  }
   
   const navItems = document.querySelectorAll('.bottom-nav .nav-item');
   navItems.forEach(item => {
@@ -714,7 +791,9 @@ function navigateTo(viewId) {
 // ==========================================
 // 6. Webcam & face-api.js Integration
 // ==========================================
-const MODEL_URL_LOCAL = './models';
+// Use absolute URL so models resolve correctly under Capacitor's https://localhost scheme
+// and under a regular browser dev server equally.
+const MODEL_URL_LOCAL = `${window.location.origin}/models`;
 const MODEL_URL_CDN = 'https://justadudewhohacks.github.io/face-api.js/models/';
 
 // ─────────────────────────────────────────────────────────────
@@ -1136,9 +1215,36 @@ function runSimulatedScanResult(loaderSubtext) {
 }
 
 // ==========================================
-// 7. Results & Playlist Rendering
+// 7. Results & Playlist Rendering (JioSaavn Stream Engine)
 // ==========================================
-function renderResults(mood, confidence) {
+async function fetchJioSaavnMoodPlaylist(mood) {
+  const baseTracks = INDIAN_PLAYLISTS[mood] || INDIAN_PLAYLISTS['Happy'];
+  try {
+    const resolved = await Promise.all(baseTracks.map(async (t) => {
+      try {
+        const query = `${t.title} ${t.artist}`;
+        const data = await saavnSearchSongs(query, 1);
+        if (data && data.length > 0 && (data[0].downloadUrl || data[0].streamUrl)) {
+          return data[0];
+        }
+      } catch (e) {}
+      return null;
+    }));
+    const valid = resolved.filter(Boolean);
+    if (valid.length >= 3) return valid;
+  } catch (err) {
+    console.warn('JioSaavn mood playlist resolution error:', err);
+  }
+  
+  try {
+    const fallbackData = await saavnSearchSongs(`Bollywood ${mood} hits`, 12);
+    if (fallbackData && fallbackData.length > 0) return fallbackData;
+  } catch(e) {}
+
+  return baseTracks;
+}
+
+async function renderResults(mood, confidence) {
   state.selectedMood = mood;
   
   const body = document.body;
@@ -1151,8 +1257,15 @@ function renderResults(mood, confidence) {
   document.getElementById('result-mood-name').innerText = mood;
   document.getElementById('result-confidence-val').innerText = `${confidence}%`;
   document.getElementById('result-mood-description').innerText = description;
+
+  document.getElementById('playlist-track-count').innerText = 'Resolving tracks...';
   
-  state.currentGeneratedPlaylist = [...INDIAN_PLAYLISTS[mood]];
+  // Show results loader while resolving audio URLs
+  document.getElementById('results-loader').style.display = 'flex';
+  document.getElementById('results-panel').style.display = 'none';
+
+  const saavnTracks = await fetchJioSaavnMoodPlaylist(mood);
+  state.currentGeneratedPlaylist = saavnTracks;
   populatePlaylist(state.currentGeneratedPlaylist);
   
   addToHistory(mood, emoji, confidence);
@@ -1172,35 +1285,46 @@ function populatePlaylist(playlistArray) {
   playlistArray.forEach((song, index) => {
     const card = document.createElement('div');
     card.className = 'song-card glass';
-    card.setAttribute('data-video-id', song.videoId);
-    card.style.animationDelay = `${index * 0.05}s`;
+    card.setAttribute('data-id', song.id || song.videoId || index);
+    card.style.animationDelay = `${index * 0.04}s`;
     
-    const hueStart = (index * 25) % 360;
-    const hueEnd = (hueStart + 40) % 360;
-    const artBg = `linear-gradient(135deg, hsl(${hueStart}, 85%, 60%), hsl(${hueEnd}, 85%, 50%))`;
+    const artBg = song.image 
+      ? `url('${song.image}') center/cover no-repeat` 
+      : `linear-gradient(135deg, hsl(${(index * 25) % 360}, 85%, 60%), hsl(${((index * 25) + 40) % 360}, 85%, 50%))`;
     
     card.innerHTML = `
       <div class="song-art-wrapper" style="background: ${artBg}">
-        <i data-lucide="music" class="song-art-icon"></i>
+        ${!song.image ? '<i data-lucide="music" class="song-art-icon"></i>' : ''}
         <div class="now-playing-indicator"><i data-lucide="volume-2"></i></div>
       </div>
       <div class="song-info">
-        <h4 class="song-name">${song.title}</h4>
+        <h4 class="song-name">${escapeHtml(song.title)}</h4>
         <div class="song-artist-row">
-          <span class="song-artist">${song.artist}</span>
-          <span class="song-genre-tag">${song.genre}</span>
+          <span class="song-artist">${escapeHtml(song.artist)}</span>
+          <span class="song-genre-tag">HD Audio</span>
         </div>
       </div>
-      <button class="btn-song-action btn-play-song" aria-label="Play directly">
-        <i data-lucide="play"></i>
-      </button>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <button class="btn-song-action btn-add-pl" aria-label="Add to playlist" style="background:var(--surface-3); color:var(--text-color);">
+          <i data-lucide="plus"></i>
+        </button>
+        <button class="btn-song-action btn-play-song" aria-label="Play directly">
+          <i data-lucide="play"></i>
+        </button>
+      </div>
     `;
     
-    // Bind click to direct playback function
-    card.querySelector('.btn-play-song').onclick = () => {
+    card.querySelector('.btn-add-pl').onclick = (e) => {
+      e.stopPropagation();
+      openAddToPlaylistModal(song);
+    };
+
+    card.querySelector('.btn-play-song').onclick = (e) => {
+      e.stopPropagation();
       playSong(song, playlistArray, index);
     };
 
+    card.onclick = () => playSong(song, playlistArray, index);
     container.appendChild(card);
   });
   
@@ -1471,96 +1595,79 @@ function createFreshPlayer(videoId, vol) {
 
 function playSong(song, playlist, index) {
   state.currentPlayerSong = song;
-  state.currentPlayerPlaylist = playlist;
-  state.currentPlayerIndex = index;
+  state.currentPlayerPlaylist = playlist || [];
+  state.currentPlayerIndex = index || 0;
   state.isPlaying = true;
   
-  // Track recently played IDs to prevent autoplay repeats (window of 5)
   if (song && song.videoId) {
     state.recentlyPlayedIds = [song.videoId, ...state.recentlyPlayedIds].slice(0, 5);
   }
   
-  // Update Media Session (Lockscreen Controls)
   updateMediaSession(song);
   
-  // Show Player Bar
   const playerBar = document.getElementById('player-bar');
-  playerBar.style.display = 'flex';
-  void playerBar.offsetHeight;
-  playerBar.classList.add('active');
-  document.body.classList.add('player-active');
+  if (playerBar) {
+    playerBar.style.display = 'flex';
+    void playerBar.offsetHeight;
+    playerBar.classList.add('active');
+    document.body.classList.add('player-active');
+  }
   
-  // Update details
-  document.getElementById('player-title').innerText = song.title;
-  document.getElementById('player-artist').innerText = song.artist;
+  const titleEl = document.getElementById('player-title');
+  const artistEl = document.getElementById('player-artist');
+  const artEl = document.getElementById('player-art');
+  
+  if (titleEl) titleEl.innerText = song.title;
+  if (artistEl) artistEl.innerText = song.artist;
+  
+  if (artEl) {
+    if (song.image) {
+      artEl.style.background = 'none';
+      artEl.innerHTML = `<img src="${song.image}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
+    } else {
+      const hueStart = (index * 25) % 360;
+      const hueEnd   = (hueStart + 40) % 360;
+      artEl.style.background = `linear-gradient(135deg, hsl(${hueStart}, 85%, 60%), hsl(${hueEnd}, 85%, 50%))`;
+      artEl.innerHTML = `<i data-lucide="music" class="song-art-icon"></i>`;
+    }
+  }
   
   const ytLink = document.getElementById('player-yt-link');
-  if (ytLink) ytLink.href = `https://www.youtube.com/watch?v=${song.videoId}`;
+  if (ytLink) ytLink.href = song.videoId ? `https://www.youtube.com/watch?v=${song.videoId}` : '#';
   const spotifyLink = document.getElementById('player-spotify-link');
   if (spotifyLink) spotifyLink.href = `https://open.spotify.com/search/${encodeURIComponent(song.title + ' ' + song.artist)}`;
   
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  const mobileHint = document.getElementById('player-mobile-hint');
-  if (mobileHint) mobileHint.style.display = isMobile ? 'block' : 'none';
-  
-  // Update play icon to Pause
-  document.getElementById('player-play-icon').setAttribute('data-lucide', 'pause');
-  
-  // Update art gradient
-  const hueStart = (index * 25) % 360;
-  const hueEnd   = (hueStart + 40) % 360;
-  document.getElementById('player-art').style.background =
-    `linear-gradient(135deg, hsl(${hueStart}, 85%, 60%), hsl(${hueEnd}, 85%, 50%))`;
-  
-  // Recently played tracking
-  const existingIdx = state.recentlyPlayed.findIndex(s => s.videoId === song.videoId);
-  if (existingIdx !== -1) state.recentlyPlayed.splice(existingIdx, 1);
-  state.recentlyPlayed.unshift(song);
-  if (state.recentlyPlayed.length > 5) state.recentlyPlayed.pop();
-  renderRecentlyPlayed();
-  
-  // Now-playing card highlight
-  document.querySelectorAll('.song-card').forEach(c => c.classList.remove('now-playing'));
-  document.querySelectorAll(`.song-card[data-video-id="${song.videoId}"]`).forEach(c => c.classList.add('now-playing'));
-  
-  // Reset timeline display
-  document.getElementById('player-time-current').innerText = '0:00';
-  document.getElementById('player-time-total').innerText   = '0:00';
-  document.getElementById('player-progress-fill').style.width = '0%';
-  document.getElementById('player-progress-thumb').style.left  = '0%';
-  stopProgressLoop();
-  
-  // Clean up old YT player message listener
-  if (state._ytMsgHandler) {
-    window.removeEventListener('message', state._ytMsgHandler);
-    state._ytMsgHandler = null;
-  }
-  
-  const vol = parseInt(document.getElementById('player-volume-slider')?.value ?? 80);
-  
-  if (ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
-    // Reuse existing player — just load new video
-    try {
-      ytPlayer.loadVideoById(song.videoId);
-      ytPlayer.setVolume(vol);
-      ytPlayer.playVideo();
-    } catch (e) {
-      console.error("[MoodBeats] Failed to load video on existing player:", e);
+  const playIcon = document.getElementById('player-play-icon');
+  if (playIcon) playIcon.setAttribute('data-lucide', 'pause');
+
+  // Branch 1: JioSaavn Track (Audio Streaming)
+  if (song.downloadUrl || song.streamUrl || (song.id && !song.videoId)) {
+    if (typeof ytPlayer !== 'undefined' && ytPlayer?.pauseVideo) {
+      try { ytPlayer.pauseVideo(); } catch(e) {}
+    }
+    saavnPlaySong(song);
+  } else if (song.videoId) {
+    // Branch 2: YouTube Video Track
+    if (state.saavnAudio) {
+      state.saavnAudio.pause();
+      state.saavnIsPlaying = false;
+    }
+    const vol = parseInt(document.getElementById('player-volume-slider')?.value ?? 80);
+    if (ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
+      try {
+        ytPlayer.loadVideoById(song.videoId);
+        ytPlayer.setVolume(vol);
+        ytPlayer.playVideo();
+      } catch (e) {
+        createFreshPlayer(song.videoId, vol);
+      }
+    } else {
       createFreshPlayer(song.videoId, vol);
     }
-  } else {
-    // Create fresh YT.Player instance
-    createFreshPlayer(song.videoId, vol);
+    setTimeout(() => startProgressLoop(), 1000);
   }
   
-  // If ytPlayer already existed and we reused it, restart progress loop after a short delay
-  if (ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
-    setTimeout(() => startProgressLoop(), 1500);
-  }
-  
-  // Sync NP panel
   syncNowPlayingPanel(song, index);
-  
   initProgressBar();
   initVolumeControl();
   lucide.createIcons();
@@ -2002,199 +2109,703 @@ function populateHistoryLarge() {
 }
 
 // ==========================================
-// 9. Search Music Controller
+// 9. Unified Search, Artist Profile & Playlist Engine
 // ==========================================
-function getAllSongs() {
-  let all = [];
-  let seen = new Set();
-  for (const moodSongs of Object.values(PLAYLISTS)) {
-    moodSongs.forEach(song => {
-      const key = `${song.title}-${song.artist}`.toLowerCase();
-      if (!seen.has(key)) {
-        seen.add(key);
-        all.push(song);
-      }
+
+// --- Playlist Management Engine ---
+function saveUserPlaylists() {
+  localStorage.setItem('moodbeats_user_playlists', JSON.stringify(state.userPlaylists));
+}
+
+function createUserPlaylist(name) {
+  if (!name || !name.trim()) return null;
+  const newPlaylist = {
+    id: 'pl_' + Date.now(),
+    name: name.trim(),
+    created: new Date().toLocaleDateString(),
+    tracks: []
+  };
+  state.userPlaylists.push(newPlaylist);
+  saveUserPlaylists();
+  showToast(`Playlist "${newPlaylist.name}" created!`);
+  renderLibraryView();
+  return newPlaylist;
+}
+
+function addSongToPlaylist(playlistId, song) {
+  const pl = state.userPlaylists.find(p => p.id === playlistId);
+  if (!pl) return;
+  
+  const exists = pl.tracks.some(t => (t.id && song.id && t.id === song.id) || (t.videoId && song.videoId && t.videoId === song.videoId));
+  if (exists) {
+    showToast(`Already in "${pl.name}"`);
+    return;
+  }
+  
+  pl.tracks.push(song);
+  saveUserPlaylists();
+  showToast(`Added to "${pl.name}"!`);
+  
+  if (state.currentPlaylistView && state.currentPlaylistView.id === playlistId) {
+    renderPlaylistDetailView(pl);
+  }
+  renderLibraryView();
+}
+
+function removeSongFromPlaylist(playlistId, trackIndex) {
+  const pl = state.userPlaylists.find(p => p.id === playlistId);
+  if (!pl) return;
+  pl.tracks.splice(trackIndex, 1);
+  saveUserPlaylists();
+  showToast(`Removed from "${pl.name}"`);
+  renderPlaylistDetailView(pl);
+  renderLibraryView();
+}
+
+function deleteUserPlaylist(playlistId) {
+  const pl = state.userPlaylists.find(p => p.id === playlistId);
+  if (!pl) return;
+  if (confirm(`Delete playlist "${pl.name}"?`)) {
+    state.userPlaylists = state.userPlaylists.filter(p => p.id !== playlistId);
+    saveUserPlaylists();
+    showToast(`Deleted "${pl.name}"`);
+    navigateTo('view-history');
+    renderLibraryView();
+  }
+}
+
+// --- Modals ---
+function openAddToPlaylistModal(song) {
+  state.songToAddModal = song;
+  const modal = document.getElementById('add-to-playlist-modal');
+  const titleEl = document.getElementById('add-modal-song-title');
+  const artistEl = document.getElementById('add-modal-song-artist');
+  const artEl = document.getElementById('add-modal-song-art');
+  const listEl = document.getElementById('modal-playlists-list');
+
+  if (titleEl) titleEl.innerText = song.title || 'Track';
+  if (artistEl) artistEl.innerText = song.artist || 'Artist';
+  if (artEl) artEl.src = song.image || (song.videoId ? `https://i.ytimg.com/vi/${song.videoId}/hqdefault.jpg` : 'icon.png');
+
+  listEl.innerHTML = '';
+  if (state.userPlaylists.length === 0) {
+    listEl.innerHTML = '<p style="font-size:12px; color:var(--text-muted); text-align:center; padding:10px;">No playlists created yet.</p>';
+  } else {
+    state.userPlaylists.forEach(pl => {
+      const item = document.createElement('div');
+      item.className = 'playlist-select-item';
+      item.innerHTML = `
+        <div>
+          <div style="font-weight:600; font-size:14px; color:var(--text-color);">${escapeHtml(pl.name)}</div>
+          <div style="font-size:11px; color:var(--text-muted);">${pl.tracks.length} tracks</div>
+        </div>
+        <button class="btn btn-primary btn-sm" style="padding:4px 12px; font-size:12px;">+ Add</button>
+      `;
+      item.onclick = () => {
+        addSongToPlaylist(pl.id, song);
+        closeAddToPlaylistModal();
+      };
+      listEl.appendChild(item);
     });
   }
-  return all;
+
+  modal.style.display = 'flex';
+  lucide.createIcons();
 }
 
+function closeAddToPlaylistModal() {
+  const modal = document.getElementById('add-to-playlist-modal');
+  if (modal) modal.style.display = 'none';
+  state.songToAddModal = null;
+}
+
+function openCreatePlaylistModal() {
+  const modal = document.getElementById('create-playlist-modal');
+  const input = document.getElementById('create-playlist-name-input');
+  if (input) input.value = '';
+  if (modal) modal.style.display = 'flex';
+  if (input) input.focus();
+}
+
+function closeCreatePlaylistModal() {
+  const modal = document.getElementById('create-playlist-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+// --- Search View Initialiser ---
+// Called by navigateTo() every time the user switches to view-search.
+// Resets state to the empty/prompt screen and optionally re-fires a search
+// if the input already contains text (e.g. user navigated away and came back).
 function initSearchView() {
-  const input = document.getElementById('search-input');
-  input.value = '';
-  document.getElementById('btn-clear-search').style.display = 'none';
-  
-  const chips = document.querySelectorAll('.genre-chip');
-  chips.forEach(c => c.classList.remove('active'));
-  
-  renderSearchResults(getAllSongs());
+  const searchInput = document.getElementById('search-input');
+  const loadingState = document.getElementById('search-loading-state');
+  const emptyState = document.getElementById('search-empty-state');
+  const resultsContent = document.getElementById('search-results-content');
+
+  // Reset filter pills to "All"
+  document.querySelectorAll('#search-filter-pills .filter-pill').forEach(p => p.classList.remove('active'));
+  const allPill = document.querySelector('#search-filter-pills .filter-pill[data-filter="all"]');
+  if (allPill) allPill.classList.add('active');
+  state.activeSearchFilter = 'all';
+
+  const currentQuery = searchInput ? searchInput.value.trim() : '';
+
+  if (currentQuery) {
+    // Re-trigger search so results are fresh when coming back to the view
+    onUnifiedSearch(currentQuery);
+  } else {
+    // Show the empty/prompt state
+    if (loadingState) loadingState.style.display = 'none';
+    if (emptyState) emptyState.style.display = 'flex';
+    if (resultsContent) resultsContent.style.display = 'none';
+  }
+
+  // Auto-focus the search bar for immediate typing
+  if (searchInput) setTimeout(() => searchInput.focus(), 200);
 }
 
-function renderSearchResults(filteredSongs) {
-  const container = document.getElementById('search-results-container');
-  container.innerHTML = '';
+// --- Unified Search Controller ---
+let unifiedSearchTimer = null;
+
+async function onUnifiedSearch(queryRaw) {
+  const query = queryRaw.trim();
+  const loadingState = document.getElementById('search-loading-state');
+  const emptyState = document.getElementById('search-empty-state');
+  const noResultsState = document.getElementById('search-no-results-state');
+  const resultsContent = document.getElementById('search-results-content');
+  const clearBtn = document.getElementById('btn-clear-search');
+
+  if (clearBtn) clearBtn.style.display = query ? 'flex' : 'none';
+
+  if (!query) {
+    if (loadingState) loadingState.style.display = 'none';
+    if (emptyState) emptyState.style.display = 'flex';
+    if (noResultsState) noResultsState.style.display = 'none';
+    if (resultsContent) resultsContent.style.display = 'none';
+    return;
+  }
+
+  if (loadingState) loadingState.style.display = 'flex';
+  if (emptyState) emptyState.style.display = 'none';
+  if (noResultsState) noResultsState.style.display = 'none';
+  if (resultsContent) resultsContent.style.display = 'none';
+
+  try {
+    let artists = [];
+    let songs = [];
+    let albums = [];
+    let playlists = [];
+
+    if (window.JSA) {
+      try {
+        const jsaData = await window.JSA.searchAll(query);
+        artists = jsaData.artists || [];
+        songs = jsaData.songs || [];
+        albums = jsaData.albums || [];
+        playlists = jsaData.playlists || [];
+      } catch(e) {
+        console.warn('window.JSA.searchAll failed, trying fallback:', e);
+      }
+    }
+
+    // Fallback 1: searchSongs via JSA
+    if (songs.length === 0 && window.JSA) {
+      try {
+        songs = await window.JSA.searchSongs(query, 15);
+      } catch(e) {}
+    }
+
+    // Fallback 2: Direct raw fetch if JSA object had any issue
+    if (songs.length === 0 && artists.length === 0) {
+      try {
+        const res = await fetch(`https://saavn.sumit.co/api/search/songs?query=${encodeURIComponent(query)}&page=1&limit=15`);
+        if (res.ok) {
+          const raw = await res.json();
+          const list = raw?.data?.results || raw?.results || [];
+          songs = list.map(s => ({
+            id: s.id,
+            title: s.name || s.title || 'Unknown',
+            artist: (s.artists?.primary?.map(a => a.name).join(', ')) || s.primaryArtists || 'Unknown Artist',
+            album: s.album?.name || s.album || '',
+            duration: s.duration || 0,
+            image: s.image?.[2]?.url || s.image?.[1]?.url || s.image?.[0]?.url || 'icon.png',
+            downloadUrl: s.downloadUrl?.[4]?.url || s.downloadUrl?.[3]?.url || s.downloadUrl?.[2]?.url || null,
+          }));
+        }
+      } catch(e) {
+        console.warn('Direct fetch fallback failed:', e);
+      }
+    }
+
+    // YouTube global search
+    let ytVideos = [];
+    try {
+      ytVideos = await searchYouTubeGlobally(query);
+    } catch(e) {}
+
+    // User custom playlists matching search
+    const userPlaylists = state.userPlaylists.filter(pl => pl.name.toLowerCase().includes(query.toLowerCase()));
+    const allPlaylists = [...userPlaylists, ...playlists];
+
+    state.lastSearchData = { artists, songs, ytVideos, playlists: allPlaylists, query };
+
+    if (loadingState) loadingState.style.display = 'none';
+
+    renderUnifiedSearchResults(artists, songs, ytVideos, allPlaylists);
+  } catch (err) {
+    console.error('Search failed:', err);
+    if (loadingState) loadingState.style.display = 'none';
+    if (noResultsState) {
+      noResultsState.style.display = 'flex';
+      const txt = document.getElementById('search-no-results-text');
+      if (txt) txt.innerText = `No results found for "${query}". Please check your internet connection or try another search term.`;
+    }
+  }
+}
+
+function renderUnifiedSearchResults(artists = [], songs = [], ytVideos = [], playlists = []) {
+  const artistsSec = document.getElementById('section-artists');
+  const artistsList = document.getElementById('search-artists-list');
+  const songsSec = document.getElementById('section-songs');
+  const songsList = document.getElementById('search-songs-list');
+  const ytSec = document.getElementById('section-youtube');
+  const ytList = document.getElementById('search-youtube-list');
+  const plSec = document.getElementById('section-playlists');
+  const plList = document.getElementById('search-playlists-list');
+
+  const resultsContent = document.getElementById('search-results-content');
+  const noResultsState = document.getElementById('search-no-results-state');
+
+  const filter = state.activeSearchFilter || 'all';
+
+  const showArtists = (filter === 'all' || filter === 'artists') && artists.length > 0;
+  const showSongs   = (filter === 'all' || filter === 'songs') && songs.length > 0;
+  const showYt      = (filter === 'all' || filter === 'youtube') && ytVideos.length > 0;
+  const showPl      = (filter === 'all' || filter === 'playlists') && playlists.length > 0;
+
+  // 1. Artists (Spotify Style)
+  if (showArtists) {
+    artistsSec.style.display = 'block';
+    artistsList.innerHTML = '';
+    artists.forEach(artist => {
+      const card = document.createElement('div');
+      card.className = 'artist-card';
+      card.innerHTML = `
+        <img class="artist-avatar" src="${artist.image}" onerror="this.src='icon.png'">
+        <div class="artist-card-name">${escapeHtml(artist.name)}</div>
+        <div class="artist-role-badge">Artist</div>
+      `;
+      card.onclick = () => openArtistProfile(artist.id, artist.name, artist.image);
+      artistsList.appendChild(card);
+    });
+  } else {
+    if (artistsSec) artistsSec.style.display = 'none';
+  }
+
+  // 2. Songs (Audio Stream)
+  if (showSongs) {
+    songsSec.style.display = 'block';
+    songsList.innerHTML = '';
+    songs.forEach((song, idx) => {
+      const row = document.createElement('div');
+      row.className = 'track-row';
+      row.innerHTML = `
+        <img class="track-art" src="${song.image || 'icon.png'}" onerror="this.src='icon.png'">
+        <div class="track-info">
+          <div class="track-title">${escapeHtml(song.title)}</div>
+          <div class="track-artist">${escapeHtml(song.artist)}</div>
+        </div>
+        <div class="track-duration">${formatTime(song.duration)}</div>
+        <div class="track-actions">
+          <button class="btn-track-action btn-add-pl" title="Add to Playlist">
+            <i data-lucide="plus"></i>
+          </button>
+          <button class="btn-track-action btn-play-tr" title="Play">
+            <i data-lucide="play" fill="currentColor"></i>
+          </button>
+        </div>
+      `;
+      row.querySelector('.btn-add-pl').onclick = (e) => {
+        e.stopPropagation();
+        openAddToPlaylistModal(song);
+      };
+      row.querySelector('.btn-play-tr').onclick = (e) => {
+        e.stopPropagation();
+        playSong(song, songs, idx);
+      };
+      row.onclick = () => playSong(song, songs, idx);
+      songsList.appendChild(row);
+    });
+  } else {
+    if (songsSec) songsSec.style.display = 'none';
+  }
+
+  // 3. YouTube Videos
+  if (showYt) {
+    ytSec.style.display = 'block';
+    ytList.innerHTML = '';
+    ytVideos.forEach((video, idx) => {
+      const row = document.createElement('div');
+      row.className = 'track-row';
+      row.innerHTML = `
+        <img class="track-art" src="https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg" onerror="this.src='icon.png'">
+        <div class="track-info">
+          <div class="track-title">${escapeHtml(video.title)}</div>
+          <div class="track-artist">${escapeHtml(video.artist)} • YouTube</div>
+        </div>
+        <div class="track-actions">
+          <button class="btn-track-action btn-add-pl" title="Add to Playlist">
+            <i data-lucide="plus"></i>
+          </button>
+          <button class="btn-track-action btn-play-tr" title="Play">
+            <i data-lucide="play" fill="currentColor"></i>
+          </button>
+        </div>
+      `;
+      row.querySelector('.btn-add-pl').onclick = (e) => {
+        e.stopPropagation();
+        openAddToPlaylistModal({
+          title: video.title,
+          artist: video.artist,
+          videoId: video.videoId,
+          image: `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`
+        });
+      };
+      row.querySelector('.btn-play-tr').onclick = (e) => {
+        e.stopPropagation();
+        playSong(video, ytVideos, idx);
+      };
+      row.onclick = () => playSong(video, ytVideos, idx);
+      ytList.appendChild(row);
+    });
+  } else {
+    if (ytSec) ytSec.style.display = 'none';
+  }
+
+  // 4. Playlists
+  if (showPl) {
+    plSec.style.display = 'block';
+    plList.innerHTML = '';
+    playlists.forEach(pl => {
+      const card = document.createElement('div');
+      card.className = 'playlist-card';
+      card.innerHTML = `
+        <div class="playlist-card-art">
+          <i data-lucide="music-3"></i>
+        </div>
+        <div class="playlist-card-title">${escapeHtml(pl.name)}</div>
+        <div class="playlist-card-count">${pl.tracks ? pl.tracks.length : (pl.songCount || 0)} tracks</div>
+      `;
+      card.onclick = () => openPlaylistView(pl.id);
+      plList.appendChild(card);
+    });
+  } else {
+    if (plSec) plSec.style.display = 'none';
+  }
+
+  const hasAnyVisible = showArtists || showSongs || showYt || showPl;
+
+  if (hasAnyVisible) {
+    if (resultsContent) resultsContent.style.display = 'flex';
+    if (noResultsState) noResultsState.style.display = 'none';
+  } else {
+    if (resultsContent) resultsContent.style.display = 'none';
+    if (noResultsState) {
+      noResultsState.style.display = 'flex';
+      const txt = document.getElementById('search-no-results-text');
+      if (txt) {
+        txt.innerText = filter !== 'all'
+          ? `No ${filter} found matching your query.`
+          : 'Try searching for song titles, artist names like Arijit Singh, or movie albums.';
+      }
+    }
+  }
+
+  lucide.createIcons();
+}
+
+// --- Artist Profile Controller ---
+async function openArtistProfile(artistId, artistName, artistImage) {
+  navigateTo('view-artist-detail');
   
-  if (filteredSongs.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state-box glass" style="grid-column: 1 / -1; width: 100%;">
-        <i data-lucide="music-3" class="empty-state-icon"></i>
-        <h3>No results found</h3>
-        <p>Try searching for other keywords, artists, or clear filters.</p>
+  const heroName = document.getElementById('artist-hero-name');
+  const heroArt = document.getElementById('artist-hero-art');
+  const heroMeta = document.getElementById('artist-hero-meta');
+  const tracksList = document.getElementById('artist-top-tracks-list');
+
+  if (heroName) heroName.innerText = artistName || 'Artist';
+  if (heroArt) heroArt.src = artistImage || 'icon.png';
+  if (heroMeta) heroMeta.innerText = 'Loading top tracks...';
+  if (tracksList) tracksList.innerHTML = '<div style="padding:30px; text-align:center;"><div class="spinner" style="width:28px;height:28px;"></div></div>';
+
+  try {
+    let artistData = null;
+    try {
+      artistData = await saavnGetArtistDetails(artistId);
+    } catch(e) {
+      const songs = await saavnSearchSongs(artistName, 15);
+      artistData = {
+        name: artistName,
+        image: artistImage,
+        topSongs: songs
+      };
+    }
+
+    if (heroMeta) heroMeta.innerText = `${artistData.topSongs.length} Popular Tracks • Verified Artist`;
+    state.currentArtistView = artistData;
+
+    renderArtistTopTracks(artistData.topSongs);
+  } catch (err) {
+    console.error('Failed to load artist details:', err);
+    if (heroMeta) heroMeta.innerText = 'Popular Artist';
+  }
+}
+
+function renderArtistTopTracks(songs) {
+  const container = document.getElementById('artist-top-tracks-list');
+  container.innerHTML = '';
+
+  songs.forEach((song, idx) => {
+    const row = document.createElement('div');
+    row.className = 'track-row';
+    row.innerHTML = `
+      <div style="width:20px; font-weight:700; font-size:13px; color:var(--text-muted); text-align:center;">${idx + 1}</div>
+      <img class="track-art" src="${song.image || 'icon.png'}" onerror="this.src='icon.png'">
+      <div class="track-info">
+        <div class="track-title">${escapeHtml(song.title)}</div>
+        <div class="track-artist">${escapeHtml(song.artist)}</div>
+      </div>
+      <div class="track-duration">${formatTime(song.duration)}</div>
+      <div class="track-actions">
+        <button class="btn-track-action btn-add-pl" title="Add to Playlist">
+          <i data-lucide="plus"></i>
+        </button>
+        <button class="btn-track-action btn-play-tr" title="Play">
+          <i data-lucide="play" fill="currentColor"></i>
+        </button>
+      </div>
+    `;
+    row.querySelector('.btn-add-pl').onclick = (e) => {
+      e.stopPropagation();
+      openAddToPlaylistModal(song);
+    };
+    row.querySelector('.btn-play-tr').onclick = (e) => {
+      e.stopPropagation();
+      playSong(song, songs, idx);
+    };
+    row.onclick = () => playSong(song, songs, idx);
+    container.appendChild(row);
+  });
+
+  const playAllBtn = document.getElementById('btn-artist-play-all');
+  if (playAllBtn) {
+    playAllBtn.onclick = () => {
+      if (songs.length > 0) playSong(songs[0], songs, 0);
+    };
+  }
+
+  lucide.createIcons();
+}
+
+// --- Playlist Detail Controller ---
+async function openPlaylistView(playlistId, isJSaavn = false) {
+  navigateTo('view-playlist-detail');
+  const heroName = document.getElementById('playlist-hero-name');
+  const heroDesc = document.getElementById('playlist-hero-desc');
+  const tracksContainer = document.getElementById('playlist-tracks-list');
+
+  if (heroName) heroName.innerText = 'Loading playlist...';
+  if (heroDesc) heroDesc.innerText = 'Fetching tracks...';
+  if (tracksContainer) tracksContainer.innerHTML = '<div style="padding:40px;text-align:center;"><div class="spinner" style="width:28px;height:28px;"></div></div>';
+
+  let pl = state.userPlaylists.find(p => p.id === playlistId);
+
+  if (!pl && window.JSA) {
+    try {
+      const apiPl = await window.JSA.getPlaylist(playlistId).catch(() => window.JSA.getAlbum(playlistId));
+      if (apiPl) {
+        pl = {
+          id: apiPl.id,
+          name: apiPl.name || apiPl.displayLabel || 'Playlist',
+          created: 'JioSaavn',
+          tracks: apiPl.songs || [],
+          isJSaavn: true
+        };
+      }
+    } catch (e) {
+      console.warn('Failed to fetch JioSaavn playlist:', e);
+    }
+  }
+
+  if (!pl) {
+    if (heroName) heroName.innerText = 'Playlist Not Found';
+    if (heroDesc) heroDesc.innerText = 'Could not load tracks.';
+    if (tracksContainer) tracksContainer.innerHTML = '';
+    return;
+  }
+
+  state.currentPlaylistView = pl;
+  renderPlaylistDetailView(pl);
+}
+
+function renderPlaylistDetailView(pl) {
+  const heroName = document.getElementById('playlist-hero-name');
+  const heroDesc = document.getElementById('playlist-hero-desc');
+  const tracksContainer = document.getElementById('playlist-tracks-list');
+
+  if (heroName) heroName.innerText = pl.name;
+  if (heroDesc) heroDesc.innerText = `${pl.tracks.length} Tracks • ${pl.isJSaavn ? 'JioSaavn Featured' : 'Created ' + pl.created}`;
+
+  if (!tracksContainer) return;
+  tracksContainer.innerHTML = '';
+
+  if (pl.tracks.length === 0) {
+    tracksContainer.innerHTML = `
+      <div class="empty-state-box glass">
+        <i data-lucide="music" class="empty-state-icon"></i>
+        <h3>Playlist is empty</h3>
+        <p>Search for songs or artists and tap "+" to add songs to this playlist.</p>
       </div>
     `;
     lucide.createIcons();
     return;
   }
-  
-  // Use DocumentFragment for batch DOM insertion (much faster, no reflow per card)
-  const fragment = document.createDocumentFragment();
-  
-  filteredSongs.forEach((song, index) => {
-    const card = document.createElement('div');
-    card.className = 'song-card glass';
-    card.setAttribute('data-video-id', song.videoId);
-    card.style.animationDelay = `${index * 0.02}s`;
-    
-    const hueStart = (index * 25) % 360;
-    const hueEnd = (hueStart + 40) % 360;
-    const artBg = `linear-gradient(135deg, hsl(${hueStart}, 85%, 60%), hsl(${hueEnd}, 85%, 50%))`;
-    
-    card.innerHTML = `
-      <div class="song-art-wrapper" style="background: ${artBg}">
-        <i data-lucide="music" class="song-art-icon"></i>
-        <div class="now-playing-indicator"><i data-lucide="volume-2"></i></div>
+
+  pl.tracks.forEach((song, idx) => {
+    const row = document.createElement('div');
+    row.className = 'track-row';
+    row.innerHTML = `
+      <img class="track-art" src="${song.image || 'icon.png'}" onerror="this.src='icon.png'">
+      <div class="track-info">
+        <div class="track-title">${escapeHtml(song.title)}</div>
+        <div class="track-artist">${escapeHtml(song.artist)}</div>
       </div>
-      <div class="song-info">
-        <h4 class="song-name">${song.title}</h4>
-        <div class="song-artist-row">
-          <span class="song-artist">${song.artist}</span>
-          <span class="song-genre-tag">${song.genre}</span>
-        </div>
+      <div class="track-actions">
+        ${!pl.isJSaavn ? `
+        <button class="btn-track-action btn-rm-tr" title="Remove Track" style="color:#ef4444;">
+          <i data-lucide="trash-2"></i>
+        </button>` : ''}
+        <button class="btn-track-action btn-play-tr" title="Play">
+          <i data-lucide="play" fill="currentColor"></i>
+        </button>
       </div>
-      <button class="btn-song-action btn-play-song" aria-label="Play directly">
-        <i data-lucide="play"></i>
-      </button>
     `;
-    
-    card.querySelector('.btn-play-song').onclick = () => {
-      playSong(song, filteredSongs, index);
+    if (!pl.isJSaavn) {
+      const rmBtn = row.querySelector('.btn-rm-tr');
+      if (rmBtn) {
+        rmBtn.onclick = (e) => {
+          e.stopPropagation();
+          removeSongFromPlaylist(pl.id, idx);
+        };
+      }
+    }
+    row.querySelector('.btn-play-tr').onclick = (e) => {
+      e.stopPropagation();
+      playSong(song, pl.tracks, idx);
     };
-    
-    fragment.appendChild(card);
+    row.onclick = () => playSong(song, pl.tracks, idx);
+    tracksContainer.appendChild(row);
   });
-  
-  container.appendChild(fragment); // Single reflow instead of one per card
-  
+
+  const playBtn = document.getElementById('btn-playlist-play');
+  if (playBtn) {
+    playBtn.onclick = () => {
+      if (pl.tracks.length > 0) playSong(pl.tracks[0], pl.tracks, 0);
+    };
+  }
+
+  const deleteBtn = document.getElementById('btn-playlist-delete');
+  if (deleteBtn) {
+    if (pl.isJSaavn) {
+      deleteBtn.style.display = 'none';
+    } else {
+      deleteBtn.style.display = 'flex';
+      deleteBtn.onclick = () => {
+        deleteUserPlaylist(pl.id);
+      };
+    }
+  }
+
   lucide.createIcons();
 }
 
-async function searchYouTubeGlobally(query) {
-  const isCapacitor = window.Capacitor !== undefined;
-  
-  if (isCapacitor) {
-    try {
-      console.log('[MoodBeats] Querying YouTube search directly from app WebView...');
-      const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%253D%253D`;
-      const response = await fetch(ytUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36',
-          'Accept-Language': 'en-US,en;q=0.9'
-        }
-      });
-      if (response.ok) {
-        const html = await response.text();
-        return parseYouTubeHTML(html);
-      }
-    } catch (nativeErr) {
-      console.warn('[MoodBeats] Direct YouTube fetch failed, trying backend server:', nativeErr);
-    }
-  }
+// --- Library Controller ---
+async function renderLibraryView() {
+  const plGrid = document.getElementById('library-playlists-grid');
+  const histList = document.getElementById('history-large-list');
+  const filter = state.activeLibFilter || 'all';
 
-  // Normal browser or fallback to Node server
-  const serverUrl = getServerUrl();
-  const response = await fetch(`${serverUrl}/api/yt-search?q=${encodeURIComponent(query)}`);
-  if (!response.ok) throw new Error("Server Search failed");
-  return await response.json();
-}
+  if (plGrid) {
+    if (filter === 'all' || filter === 'playlists') {
+      plGrid.style.display = 'grid';
+      plGrid.innerHTML = '';
 
-function parseYouTubeHTML(html) {
-  let results = [];
-  const seenIds = new Set();
-  
-  try {
-    const matchJson = html.match(/ytInitialData\s*=\s*({.+?});/);
-    if (matchJson) {
-      const json = JSON.parse(matchJson[1]);
-      let contents;
-      
-      if (json.contents && json.contents.twoColumnSearchResultsRenderer) {
-        contents = json.contents.twoColumnSearchResultsRenderer.primaryContents.sectionListRenderer.contents;
-      } else if (json.contents && json.contents.sectionListRenderer) {
-        contents = json.contents.sectionListRenderer.contents;
-      }
-      
-      if (contents) {
-        let items = [];
-        for (const c of contents) {
-          if (c.itemSectionRenderer) {
-            items = c.itemSectionRenderer.contents;
-            break;
-          }
-        }
-        
-        for (const item of items) {
-          if (item.videoRenderer) {
-            const v = item.videoRenderer;
-            const title = v.title.runs[0].text;
-            const videoId = v.videoId;
-            const channel = v.ownerText.runs[0].text;
-            
-            results.push({
-              title: title,
-              artist: channel,
-              videoId: videoId,
-              genre: 'YouTube'
-            });
-            seenIds.add(videoId);
-            if (results.length >= 8) break;
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.warn("ytInitialData parse failed in client, running regex fallback:", e);
-  }
-  
-  if (results.length === 0) {
-    const videoTitleRegex = /"title":{"runs":\[{"text":"([^"]+)"}\],"accessibility"/g;
-    const idRegex = /"videoId":"([a-zA-Z0-9_-]{11})"/g;
-    
-    const ids = [];
-    const titles = [];
-    
-    let idMatch;
-    while ((idMatch = idRegex.exec(html)) !== null) {
-      ids.push(idMatch[1]);
-    }
-    
-    let titleMatch;
-    while ((titleMatch = videoTitleRegex.exec(html)) !== null) {
-      titles.push(titleMatch[1]);
-    }
-    
-    for (let i = 0; i < Math.min(ids.length, titles.length, 8); i++) {
-      if (!seenIds.has(ids[i])) {
-        seenIds.add(ids[i]);
-        results.push({
-          title: titles[i],
-          artist: 'YouTube Upload',
-          videoId: ids[i],
-          genre: 'YouTube'
+      if (state.userPlaylists.length === 0) {
+        plGrid.innerHTML = `
+          <div class="empty-state-box glass" style="grid-column:1/-1;">
+            <i data-lucide="music-3" class="empty-state-icon"></i>
+            <h3>No custom playlists yet</h3>
+            <p>Tap "New Playlist" above to create your first playlist!</p>
+          </div>
+        `;
+      } else {
+        state.userPlaylists.forEach(pl => {
+          const card = document.createElement('div');
+          card.className = 'playlist-card';
+          card.innerHTML = `
+            <div class="playlist-card-art">
+              <i data-lucide="music-3"></i>
+            </div>
+            <div class="playlist-card-title">${escapeHtml(pl.name)}</div>
+            <div class="playlist-card-count">${pl.tracks.length} tracks</div>
+          `;
+          card.onclick = () => openPlaylistView(pl.id);
+          plGrid.appendChild(card);
         });
       }
+
+      // Add Featured JioSaavn Playlists section
+      if (window.JSA) {
+        try {
+          const featured = await window.JSA.getFeaturedPlaylists();
+          if (featured && featured.length > 0) {
+            const header = document.createElement('div');
+            header.style.gridColumn = '1/-1';
+            header.style.marginTop = '24px';
+            header.innerHTML = '<h3 style="font-size:16px; font-weight:700; color:var(--text-color);">Trending Playlists</h3>';
+            plGrid.appendChild(header);
+
+            featured.forEach(f => {
+              const card = document.createElement('div');
+              card.className = 'playlist-card';
+              card.innerHTML = `
+                <img class="playlist-card-art" src="${f.image || 'icon.png'}" style="object-fit:cover;" onerror="this.src='icon.png'">
+                <div class="playlist-card-title">${escapeHtml(f.displayLabel || f.name)}</div>
+                <div class="playlist-card-count">${f.songs?.length || f.songCount || 0} tracks</div>
+              `;
+              card.onclick = () => openPlaylistView(f.id, true);
+              plGrid.appendChild(card);
+            });
+          }
+        } catch (e) {
+          console.warn('Failed to load featured JioSaavn playlists:', e);
+        }
+      }
+    } else {
+      plGrid.style.display = 'none';
     }
   }
-  return results;
+
+  if (histList) {
+    if (filter === 'all' || filter === 'history') {
+      histList.style.display = 'flex';
+      populateHistoryLarge();
+    } else {
+      histList.style.display = 'none';
+    }
+  }
+
+  lucide.createIcons();
 }
 
 function filterSongs() {
@@ -2683,99 +3294,87 @@ document.addEventListener('DOMContentLoaded', () => {
   // player-toggle-video removed from HTML (video drawer no longer in mini player)
   document.getElementById('player-close').addEventListener('click', closePlayer);
 
-  // Search interactions
+  // Unified Search interactions
   const searchInput = document.getElementById('search-input');
   const clearSearchBtn = document.getElementById('btn-clear-search');
   
-  searchInput.addEventListener('input', filterSongs);
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      if (unifiedSearchTimer) clearTimeout(unifiedSearchTimer);
+      unifiedSearchTimer = setTimeout(() => onUnifiedSearch(e.target.value), 350);
+    });
+  }
   
-  clearSearchBtn.addEventListener('click', () => {
-    searchInput.value = '';
-    filterSongs();
-  });
-  
-  // Search Mode Segmented Control Toggles
-  const btnLocal   = document.getElementById('search-mode-local');
-  const btnYoutube = document.getElementById('search-mode-youtube');
-  const btnSaavn   = document.getElementById('search-mode-saavn');
-  const saavnBar   = document.getElementById('saavn-search-bar-wrapper');
-  const localBar   = document.getElementById('local-search-bar-wrapper');
-  const saavnResults  = document.getElementById('saavn-results-list');
-  const saavnLoading  = document.getElementById('saavn-loading');
-  const saavnEmpty    = document.getElementById('saavn-empty-state');
-  const localResults  = document.getElementById('search-results-container');
-  const genreChipsEl  = document.getElementById('genre-chips');
-
-  function switchToSaavn() {
-    state.searchMode = 'saavn';
-    if (btnSaavn)   btnSaavn.classList.add('active');
-    if (btnLocal)   btnLocal.classList.remove('active');
-    if (btnYoutube) btnYoutube.classList.remove('active');
-    if (saavnBar)   saavnBar.style.display = 'flex';
-    if (localBar)   localBar.style.display = 'none';
-    if (saavnResults) saavnResults.style.display = 'flex';
-    if (saavnEmpty)   saavnEmpty.style.display = state.saavnSearchResults.length ? 'none' : 'flex';
-    if (localResults) localResults.style.display = 'none';
-    if (genreChipsEl) genreChipsEl.style.display = 'none';
-    document.getElementById('yt-search-status').style.display = 'none';
+  if (clearSearchBtn && searchInput) {
+    clearSearchBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      onUnifiedSearch('');
+    });
   }
 
-  function switchToLocal() {
-    if (state.searchMode === 'local') return;
-    state.searchMode = 'local';
-    if (btnLocal)   btnLocal.classList.add('active');
-    if (btnSaavn)   btnSaavn.classList.remove('active');
-    if (btnYoutube) btnYoutube.classList.remove('active');
-    if (saavnBar)   saavnBar.style.display = 'none';
-    if (localBar)   localBar.style.display = 'flex';
-    if (saavnResults) saavnResults.style.display = 'none';
-    if (saavnEmpty)   saavnEmpty.style.display = 'none';
-    if (localResults) localResults.style.display = 'grid';
-    if (genreChipsEl) genreChipsEl.style.display = 'flex';
-    searchInput.placeholder = 'Search local library...';
-    searchInput.value = '';
-    clearSearchBtn.style.display = 'none';
-    filterSongs();
-  }
-
-  function switchToYoutube() {
-    if (state.searchMode === 'youtube') return;
-    state.searchMode = 'youtube';
-    if (btnYoutube) btnYoutube.classList.add('active');
-    if (btnSaavn)   btnSaavn.classList.remove('active');
-    if (btnLocal)   btnLocal.classList.remove('active');
-    if (saavnBar)   saavnBar.style.display = 'none';
-    if (localBar)   localBar.style.display = 'flex';
-    if (saavnResults) saavnResults.style.display = 'none';
-    if (saavnEmpty)   saavnEmpty.style.display = 'none';
-    if (localResults) localResults.style.display = 'grid';
-    if (genreChipsEl) genreChipsEl.style.display = 'none';
-    searchInput.placeholder = 'Search YouTube globally...';
-    searchInput.value = '';
-    clearSearchBtn.style.display = 'none';
-    renderSearchResults([]);
-  }
-
-  if (btnSaavn)   btnSaavn.addEventListener('click', switchToSaavn);
-  if (btnLocal)   btnLocal.addEventListener('click', switchToLocal);
-  if (btnYoutube) btnYoutube.addEventListener('click', switchToYoutube);
-
-  // Default to JioSaavn mode on app load
-  switchToSaavn();
-
-  // Genre chip toggles
-  const chips = document.querySelectorAll('.genre-chip');
-  chips.forEach(chip => {
-    chip.addEventListener('click', () => {
-      if (chip.classList.contains('active')) {
-        chip.classList.remove('active');
-      } else {
-        chips.forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-      }
-      filterSongs();
+  // Search Filter Pills (All, Artists, Songs, YouTube, Playlists)
+  const searchFilterPills = document.querySelectorAll('#search-filter-pills .filter-pill');
+  searchFilterPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      searchFilterPills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      state.activeSearchFilter = pill.getAttribute('data-filter') || 'all';
+      if (searchInput) onUnifiedSearch(searchInput.value);
     });
   });
+
+  // Library Filter Pills
+  const libFilterPills = document.querySelectorAll('#library-filter-pills .lib-pill');
+  libFilterPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      libFilterPills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      state.activeLibFilter = pill.getAttribute('data-lib-filter') || 'all';
+      renderLibraryView();
+    });
+  });
+
+  // Navigation Back Buttons
+  const btnArtistBack = document.getElementById('btn-artist-back');
+  if (btnArtistBack) btnArtistBack.addEventListener('click', () => navigateTo('view-search'));
+
+  const btnPlaylistBack = document.getElementById('btn-playlist-back');
+  if (btnPlaylistBack) btnPlaylistBack.addEventListener('click', () => navigateTo('view-history'));
+
+  // Playlist Modals
+  const btnLibNewPl = document.getElementById('btn-lib-new-playlist');
+  if (btnLibNewPl) btnLibNewPl.addEventListener('click', openCreatePlaylistModal);
+
+  const btnModalCreateNew = document.getElementById('btn-modal-create-new-playlist');
+  if (btnModalCreateNew) {
+    btnModalCreateNew.addEventListener('click', () => {
+      closeAddToPlaylistModal();
+      openCreatePlaylistModal();
+    });
+  }
+
+  const btnSaveNewPl = document.getElementById('btn-save-new-playlist');
+  if (btnSaveNewPl) {
+    btnSaveNewPl.addEventListener('click', () => {
+      const nameInput = document.getElementById('create-playlist-name-input');
+      const val = nameInput ? nameInput.value : '';
+      if (val.trim()) {
+        createUserPlaylist(val);
+        closeCreatePlaylistModal();
+      } else {
+        showToast('Please enter a playlist name');
+      }
+    });
+  }
+
+  const btnCloseAddModal = document.getElementById('btn-close-add-modal');
+  if (btnCloseAddModal) btnCloseAddModal.addEventListener('click', closeAddToPlaylistModal);
+
+  const btnCloseCreateModal = document.getElementById('btn-close-create-modal');
+  if (btnCloseCreateModal) btnCloseCreateModal.addEventListener('click', closeCreatePlaylistModal);
+
+  // Initial Library Render
+  renderLibraryView();
 
   // Camera device switcher listener
   const deviceSelect = document.getElementById('camera-device-select');
@@ -2867,6 +3466,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Generate laptop pairing session ID
     state.sessionId = Math.random().toString(36).substring(2, 8);
     console.log(`Laptop Pairing Session Active: ${state.sessionId}`);
+
+    // Restore saved view if present (Search, History, Results, Settings)
+    try {
+      const savedView = localStorage.getItem('moodbeats_last_view');
+      if (savedView && document.getElementById(savedView) && !['view-webcam', 'view-phone-controller'].includes(savedView)) {
+        navigateTo(savedView);
+      }
+    } catch (e) {}
   }
   
   lucide.createIcons();
@@ -2875,7 +3482,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // so they are ready instantly when the user navigates to the scan view
   setTimeout(() => {
     if (typeof faceapi !== 'undefined' && !state.faceModelsLoaded) {
-      const MODEL_URL = './models';
+      const MODEL_URL = `${window.location.origin}/models`;
       Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
@@ -2901,19 +3508,44 @@ document.addEventListener('DOMContentLoaded', () => {
   // Expose global MoodBeats controls for native Android bridge
   window.MoodBeats = {
     play: () => {
-      if (ytPlayer && !state.isPlaying) togglePlayPause();
+      if (state.saavnAudio && !state.saavnIsPlaying) {
+        saavnTogglePlay();
+      } else if (ytPlayer && !state.isPlaying) {
+        togglePlayPause();
+      }
     },
     pause: () => {
-      if (ytPlayer && state.isPlaying) togglePlayPause();
+      if (state.saavnAudio && state.saavnIsPlaying) {
+        saavnTogglePlay();
+      } else if (ytPlayer && state.isPlaying) {
+        togglePlayPause();
+      }
+    },
+    toggle: () => {
+      if (state.saavnAudio) {
+        saavnTogglePlay();
+      } else if (ytPlayer) {
+        togglePlayPause();
+      }
     },
     next: () => {
-      playNext();
+      if (state.saavnAudio && state.saavnCurrentSong) {
+        saavnNext();
+      } else {
+        playNext();
+      }
     },
     prev: () => {
-      playPrev();
+      if (state.saavnAudio && state.saavnCurrentSong) {
+        saavnPrev();
+      } else {
+        playPrev();
+      }
     },
     seekTo: (time) => {
-      if (ytPlayer && typeof ytPlayer.seekTo === 'function') {
+      if (state.saavnAudio && state.saavnAudio.duration) {
+        state.saavnAudio.currentTime = Math.max(0, Math.min(time, state.saavnAudio.duration));
+      } else if (ytPlayer && typeof ytPlayer.seekTo === 'function') {
         ytPlayer.seekTo(time, true);
       }
     }

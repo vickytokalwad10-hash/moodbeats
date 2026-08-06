@@ -2,6 +2,13 @@
   "appId": "com.moodbeats.app",
   "appName": "MoodBeats",
   "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": ["*"]
+  },
+  "android": {
+    "allowMixedContent": true
+  },
   "plugins": {
     "CapacitorHttp": {
       "enabled": true

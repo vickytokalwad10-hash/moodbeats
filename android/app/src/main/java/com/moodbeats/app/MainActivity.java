@@ -48,28 +48,36 @@ public class MainActivity extends BridgeActivity {
         getBridge().getWebView().addJavascriptInterface(new Object() {
             @JavascriptInterface
             public void updateMetadata(String title, String artist) {
-                Intent serviceIntent = new Intent(MainActivity.this, AudioForegroundService.class);
-                serviceIntent.setAction("ACTION_UPDATE_METADATA");
-                serviceIntent.putExtra("title", title);
-                serviceIntent.putExtra("artist", artist);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(serviceIntent);
-                } else {
-                    startService(serviceIntent);
+                try {
+                    Intent serviceIntent = new Intent(MainActivity.this, AudioForegroundService.class);
+                    serviceIntent.setAction("ACTION_UPDATE_METADATA");
+                    serviceIntent.putExtra("title", title);
+                    serviceIntent.putExtra("artist", artist);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(serviceIntent);
+                    } else {
+                        startService(serviceIntent);
+                    }
+                } catch (Exception e) {
+                    android.util.Log.w("MoodBeats", "Failed to start AudioForegroundService for metadata: " + e.getMessage());
                 }
             }
 
             @JavascriptInterface
             public void updatePlaybackState(boolean isPlaying, float position, float duration) {
-                Intent serviceIntent = new Intent(MainActivity.this, AudioForegroundService.class);
-                serviceIntent.setAction("ACTION_UPDATE_PLAYBACK");
-                serviceIntent.putExtra("isPlaying", isPlaying);
-                serviceIntent.putExtra("position", position);
-                serviceIntent.putExtra("duration", duration);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(serviceIntent);
-                } else {
-                    startService(serviceIntent);
+                try {
+                    Intent serviceIntent = new Intent(MainActivity.this, AudioForegroundService.class);
+                    serviceIntent.setAction("ACTION_UPDATE_PLAYBACK");
+                    serviceIntent.putExtra("isPlaying", isPlaying);
+                    serviceIntent.putExtra("position", position);
+                    serviceIntent.putExtra("duration", duration);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(serviceIntent);
+                    } else {
+                        startService(serviceIntent);
+                    }
+                } catch (Exception e) {
+                    android.util.Log.w("MoodBeats", "Failed to start AudioForegroundService for playback: " + e.getMessage());
                 }
             }
         }, "AndroidAudioBridge");
@@ -217,19 +225,25 @@ public class MainActivity extends BridgeActivity {
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (command.equals("toggle")) {
-                    getBridge().getWebView().evaluateJavascript("window.MoodBeats.play()", null);
-                } else if (command.equals("play")) {
-                    getBridge().getWebView().evaluateJavascript("window.MoodBeats.play()", null);
-                } else if (command.equals("pause")) {
-                    getBridge().getWebView().evaluateJavascript("window.MoodBeats.pause()", null);
-                } else if (command.equals("next")) {
-                    getBridge().getWebView().evaluateJavascript("window.MoodBeats.next()", null);
-                } else if (command.equals("prev")) {
-                    getBridge().getWebView().evaluateJavascript("window.MoodBeats.prev()", null);
-                } else if (command.startsWith("seekTo:")) {
-                    String timeStr = command.substring(7);
-                    getBridge().getWebView().evaluateJavascript("window.MoodBeats.seekTo(" + timeStr + ")", null);
+                try {
+                    if (getBridge() != null && getBridge().getWebView() != null) {
+                        if (command.equals("toggle")) {
+                            getBridge().getWebView().evaluateJavascript("if(window.MoodBeats&&window.MoodBeats.toggle)window.MoodBeats.toggle();", null);
+                        } else if (command.equals("play")) {
+                            getBridge().getWebView().evaluateJavascript("if(window.MoodBeats&&window.MoodBeats.play)window.MoodBeats.play();", null);
+                        } else if (command.equals("pause")) {
+                            getBridge().getWebView().evaluateJavascript("if(window.MoodBeats&&window.MoodBeats.pause)window.MoodBeats.pause();", null);
+                        } else if (command.equals("next")) {
+                            getBridge().getWebView().evaluateJavascript("if(window.MoodBeats&&window.MoodBeats.next)window.MoodBeats.next();", null);
+                        } else if (command.equals("prev")) {
+                            getBridge().getWebView().evaluateJavascript("if(window.MoodBeats&&window.MoodBeats.prev)window.MoodBeats.prev();", null);
+                        } else if (command.startsWith("seekTo:")) {
+                            String timeStr = command.substring(7);
+                            getBridge().getWebView().evaluateJavascript("if(window.MoodBeats&&window.MoodBeats.seekTo)window.MoodBeats.seekTo(" + timeStr + ");", null);
+                        }
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("MoodBeats", "triggerWebControl failed: " + e.getMessage());
                 }
             }
         });

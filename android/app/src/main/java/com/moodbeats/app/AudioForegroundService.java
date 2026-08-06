@@ -14,6 +14,7 @@ import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.support.v4.media.MediaMetadataCompat;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.media.session.PlaybackStateCompat;
@@ -30,9 +31,10 @@ public class AudioForegroundService extends Service implements AudioManager.OnAu
     private MediaSessionCompat mediaSession;
     private AudioManager audioManager;
     private AudioFocusRequest audioFocusRequest;
+    private PowerManager.WakeLock wakeLock;
     private boolean isPlaying = false;
     private String currentTitle = "MoodBeats";
-    private String currentArtist = "Playing curations...";
+    private String currentArtist = "Playing your music...";
 
     @Override
     public void onCreate() {
@@ -50,16 +52,31 @@ public class AudioForegroundService extends Service implements AudioManager.OnAu
 
         // 3. Request Audio Focus
         requestAudioFocus();
+
+        // 4. Initialize WakeLock to keep audio streaming alive in background
+        try {
+            PowerManager powerManager = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (powerManager != null) {
+                wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MoodBeats:AudioPlaybackWakeLock");
+                wakeLock.setReferenceCounted(false);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // 5. Immediately promote to Foreground Service (satisfies Android 8+ / 14+ strict requirements)
+        startServiceInForeground();
     }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
-                    "MoodBeats Playback Channel",
+                    "MoodBeats Playback",
                     NotificationManager.IMPORTANCE_LOW
             );
-            channel.setDescription("Shows media controller notification for MoodBeats");
+            channel.setDescription("Shows media playback controls and allows background playback");
+            channel.setShowBadge(false);
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(channel);
@@ -96,17 +113,19 @@ public class AudioForegroundService extends Service implements AudioManager.OnAu
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        startServiceInForeground();
+
         if (intent != null && intent.getAction() != null) {
             String action = intent.getAction();
             if (action.equals("ACTION_UPDATE_METADATA")) {
-                currentTitle = intent.getStringExtra("title");
-                currentArtist = intent.getStringExtra("artist");
+                currentTitle = intent.getStringExtra("title") != null ? intent.getStringExtra("title") : "MoodBeats";
+                currentArtist = intent.getStringExtra("artist") != null ? intent.getStringExtra("artist") : "Playing music";
                 updateMediaSessionMetadata();
                 updateNotification();
             } else if (action.equals("ACTION_UPDATE_PLAYBACK")) {
                 isPlaying = intent.getBooleanExtra("isPlaying", false);
                 float position = intent.getFloatExtra("position", 0);
-                float duration = intent.getFloatExtra("duration", 0);
+                updateWakeLock();
                 updateMediaSessionPlaybackState(position);
                 updateNotification();
             } else if (action.equals("ACTION_PLAY_PAUSE")) {
@@ -121,9 +140,38 @@ public class AudioForegroundService extends Service implements AudioManager.OnAu
                 if (MainActivity.instance != null) {
                     MainActivity.instance.triggerWebControl("prev");
                 }
+            } else if (action.equals("ACTION_STOP")) {
+                stopSelf();
             }
         }
-        return START_NOT_STICKY;
+        return START_STICKY;
+    }
+
+    private void updateWakeLock() {
+        try {
+            if (wakeLock != null) {
+                if (isPlaying) {
+                    if (!wakeLock.isHeld()) {
+                        wakeLock.acquire(12 * 60 * 60 * 1000L); // 12 hour max hold while playing
+                    }
+                } else {
+                    if (wakeLock.isHeld()) {
+                        wakeLock.release();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void startServiceInForeground() {
+        Notification notification = buildNotification();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        } else {
+            startForeground(NOTIFICATION_ID, notification);
+        }
     }
 
     private void updateMediaSessionMetadata() {
@@ -146,8 +194,9 @@ public class AudioForegroundService extends Service implements AudioManager.OnAu
                 .build());
     }
 
-    private void updateNotification() {
+    private Notification buildNotification() {
         Intent notificationIntent = new Intent(this, MainActivity.class);
+        notificationIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent pendingIntent = PendingIntent.getActivity(
                 this, 0, notificationIntent,
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0
@@ -170,7 +219,7 @@ public class AudioForegroundService extends Service implements AudioManager.OnAu
 
         Bitmap largeIcon = BitmapFactory.decodeResource(getResources(), R.mipmap.ic_launcher);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setLargeIcon(largeIcon)
                 .setContentTitle(currentTitle)
@@ -178,26 +227,21 @@ public class AudioForegroundService extends Service implements AudioManager.OnAu
                 .setContentIntent(pendingIntent)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setOngoing(isPlaying)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setStyle(new MediaStyle()
                         .setMediaSession(mediaSession.getSessionToken())
                         .setShowActionsInCompactView(0, 1, 2))
                 .addAction(android.R.drawable.ic_media_previous, "Previous", prevPendingIntent)
                 .addAction(playPauseIcon, isPlaying ? "Pause" : "Play", playPausePendingIntent)
-                .addAction(android.R.drawable.ic_media_next, "Next", nextPendingIntent);
+                .addAction(android.R.drawable.ic_media_next, "Next", nextPendingIntent)
+                .build();
+    }
 
-        Notification notification = builder.build();
-        if (isPlaying) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
-            } else {
-                startForeground(NOTIFICATION_ID, notification);
-            }
-        } else {
-            stopForeground(false);
-            NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-            if (manager != null) {
-                manager.notify(NOTIFICATION_ID, notification);
-            }
+    private void updateNotification() {
+        Notification notification = buildNotification();
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager != null) {
+            manager.notify(NOTIFICATION_ID, notification);
         }
     }
 
@@ -258,7 +302,16 @@ public class AudioForegroundService extends Service implements AudioManager.OnAu
     @Override
     public void onDestroy() {
         super.onDestroy();
-        mediaSession.release();
+        try {
+            if (wakeLock != null && wakeLock.isHeld()) {
+                wakeLock.release();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        if (mediaSession != null) {
+            mediaSession.release();
+        }
         abandonAudioFocus();
     }
 
