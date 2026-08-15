@@ -41,3 +41,5 @@ serveo.js
 
 # Duplicate subfolders
 moodbeats/
+
+.vercel
