@@ -1026,8 +1026,13 @@ function saavnPlaySong(song, queue = null, index = null) {
   renderQueueUI();
 
   // Show mini player bar
-  const miniBar = document.getElementById('saavn-mini-bar');
-  if (miniBar) miniBar.style.display = 'block';
+  const playerBar = document.getElementById('player-bar');
+  if (playerBar) {
+    playerBar.style.display = 'flex';
+    void playerBar.offsetHeight;
+    playerBar.classList.add('active');
+    document.body.classList.add('player-active');
+  }
 
   // Notify Android Foreground Service Bridge immediately
   notifyAndroidBridge('metadata', { title: song.title, artist: song.artist });
@@ -1122,14 +1127,20 @@ function saavnPrev() {
 }
 
 function updateSaavnProgress() {
-  const bar = document.getElementById('saavn-progress-bar');
-  const cur = document.getElementById('saavn-current-time');
-  const dur = document.getElementById('saavn-duration');
-  if (!state.saavnAudio || !bar) return;
-  const pct = state.saavnAudio.duration ? (state.saavnAudio.currentTime / state.saavnAudio.duration) * 100 : 0;
-  bar.style.width = pct + '%';
-  if (cur) cur.textContent = formatTime(state.saavnAudio.currentTime);
-  if (dur) dur.textContent = formatTime(state.saavnAudio.duration || 0);
+  if (!state.saavnAudio) return;
+  const curTime = state.saavnAudio.currentTime || 0;
+  const duration = state.saavnAudio.duration || 0;
+  const pct = duration > 0 ? (curTime / duration) * 100 : 0;
+
+  // Mini Player Bar Scrubber
+  const fill = document.getElementById('player-progress-fill');
+  const thumb = document.getElementById('player-progress-thumb');
+  const cur = document.getElementById('player-time-current');
+  const dur = document.getElementById('player-time-total');
+  if (fill) fill.style.width = pct + '%';
+  if (thumb) thumb.style.left = pct + '%';
+  if (cur) cur.textContent = formatTime(curTime);
+  if (dur) dur.textContent = formatTime(duration);
 
   // Sync Now Playing scrubber if open
   const npFill = document.getElementById('np-progress-fill');
@@ -1138,29 +1149,35 @@ function updateSaavnProgress() {
   const npDur = document.getElementById('np-time-total');
   if (npFill) npFill.style.width = pct + '%';
   if (npThumb) npThumb.style.left = pct + '%';
-  if (npCur) npCur.textContent = formatTime(state.saavnAudio.currentTime);
-  if (npDur) npDur.textContent = formatTime(state.saavnAudio.duration || 0);
+  if (npCur) npCur.textContent = formatTime(curTime);
+  if (npDur) npDur.textContent = formatTime(duration);
 }
 
 function updateSaavnPlayerUI(isPlaying) {
-  const playBtn = document.getElementById('saavn-play-btn');
-  const playIcon = document.getElementById('saavn-play-icon');
-  const bar = document.getElementById('saavn-mini-bar');
-  
-  if (playIcon) {
-    playIcon.setAttribute('data-lucide', isPlaying ? 'pause' : 'play');
-    lucide.createIcons();
+  const bar = document.getElementById('player-bar');
+  if (bar) {
+    bar.style.display = 'flex';
+    void bar.offsetHeight;
+    if (state.saavnCurrentSong) bar.classList.add('active');
+    document.body.classList.add('player-active');
   }
 
-  if (bar && state.saavnCurrentSong) bar.classList.add('active');
+  const playIcon = document.getElementById('player-play-icon');
+  const playIconMobile = document.getElementById('player-play-icon-mobile');
+  if (playIcon) playIcon.setAttribute('data-lucide', isPlaying ? 'pause' : 'play');
+  if (playIconMobile) playIconMobile.setAttribute('data-lucide', isPlaying ? 'pause' : 'play');
+  lucide.createIcons();
 
-  const art = document.getElementById('saavn-bar-art');
-  const title = document.getElementById('saavn-bar-title');
-  const artist = document.getElementById('saavn-bar-artist');
+  const title = document.getElementById('player-title');
+  const artist = document.getElementById('player-artist');
+  const art = document.getElementById('player-art');
   if (state.saavnCurrentSong) {
-    if (art) art.src = state.saavnCurrentSong.image || 'icon.png';
-    if (title) title.textContent = state.saavnCurrentSong.title;
-    if (artist) artist.textContent = state.saavnCurrentSong.artist;
+    if (title) title.textContent = state.saavnCurrentSong.title || state.saavnCurrentSong.name || 'Song Title';
+    if (artist) artist.textContent = state.saavnCurrentSong.artist || state.saavnCurrentSong.primaryArtists || 'Artist';
+    if (art && state.saavnCurrentSong.image) {
+      art.style.background = 'none';
+      art.innerHTML = `<img src="${state.saavnCurrentSong.image}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
+    }
   }
 }
 
@@ -2115,16 +2132,24 @@ function initProgressBar() {
   track._bound = true;
   
   function seekTo(e) {
-    if (!ytPlayer) return;
     const rect = track.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    try {
-      const total = ytPlayer.getDuration();
-      ytPlayer.seekTo(pct * total, true);
-      document.getElementById('player-progress-fill').style.width = `${pct * 100}%`;
-      document.getElementById('player-progress-thumb').style.left = `${pct * 100}%`;
-    } catch(e) {}
+    
+    if (state.saavnAudio && (state.saavnIsPlaying || state.saavnCurrentSong)) {
+      if (state.saavnAudio.duration) {
+        state.saavnAudio.currentTime = pct * state.saavnAudio.duration;
+      }
+    } else if (typeof ytPlayer !== 'undefined' && ytPlayer && ytPlayer.getDuration) {
+      try {
+        const total = ytPlayer.getDuration();
+        ytPlayer.seekTo(pct * total, true);
+      } catch(e) {}
+    }
+    const fill = document.getElementById('player-progress-fill');
+    const thumb = document.getElementById('player-progress-thumb');
+    if (fill) fill.style.width = `${pct * 100}%`;
+    if (thumb) thumb.style.left = `${pct * 100}%`;
   }
   
   track.addEventListener('mousedown',  (e) => { isSeeking = true; seekTo(e); });
@@ -2512,6 +2537,10 @@ function renderRecentlyPlayed() {
 
 
 function togglePlayPause() {
+  if (state.saavnCurrentSong && state.saavnAudio) {
+    saavnTogglePlay();
+    return;
+  }
   const playIcon   = document.getElementById('player-play-icon');
   if (!ytPlayer) return;
   
@@ -2575,6 +2604,10 @@ function getGenreScore(genre1, genre2) {
 }
 
 function playNext() {
+  if (state.saavnCurrentSong && state.playQueue && state.playQueue.length > 0) {
+    saavnNext();
+    return;
+  }
   const playlist = state.currentPlayerPlaylist;
   if (playlist.length === 0) return;
   
@@ -2612,6 +2645,10 @@ function playNext() {
 }
 
 function playPrev() {
+  if (state.saavnCurrentSong && state.playQueue && state.playQueue.length > 0) {
+    saavnPrev();
+    return;
+  }
   if (state.currentPlayerPlaylist.length === 0) return;
   // If more than 3s into the song, restart it; otherwise go to previous
   let prevIdx;
@@ -2639,17 +2676,22 @@ function toggleVideoDrawer() {
 
 function closePlayer() {
   const playerBar = document.getElementById('player-bar');
-  
-  playerBar.classList.remove('active');
+  if (playerBar) {
+    playerBar.classList.remove('active');
+    setTimeout(() => {
+      playerBar.style.display = 'none';
+    }, 400);
+  }
   document.body.classList.remove('player-active');
   state.isVideoOpen = false;
   state.isPlaying = false;
-  
-  setTimeout(() => {
-    playerBar.style.display = 'none';
-    const placeholder = document.getElementById('youtube-player-placeholder');
-    if (placeholder) placeholder.innerHTML = '';
-  }, 400);
+  if (state.saavnAudio) {
+    state.saavnAudio.pause();
+    state.saavnIsPlaying = false;
+  }
+  if (typeof ytPlayer !== 'undefined' && ytPlayer?.pauseVideo) {
+    try { ytPlayer.pauseVideo(); } catch(e) {}
+  }
 }
 
 // ==========================================
