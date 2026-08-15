@@ -8,7 +8,7 @@ android/app/build/
 android/.gradle/
 android/build/
 
-# APK files (large binaries — keep source, not builds)
+# APK files (large binaries — deploy to OneDrive, not GitHub)
 *.apk
 
 # Environment / secrets
@@ -23,8 +23,21 @@ Thumbs.db
 *.log
 
 # Editor
-.vscode/
 .idea/
 
-# Capacitor generated
+# Capacitor generated (auto-created by npx cap sync)
 android/app/src/main/assets/public/
+
+# Debug / test / dev scripts (not needed in repo)
+analyze_lifecycle.js
+check_calls.js
+test_search.js
+download_models.js
+tunnel.js
+serveo.js
+
+# Info / document files
+*.txt
+
+# Duplicate subfolders
+moodbeats/
