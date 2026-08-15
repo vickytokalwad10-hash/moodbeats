@@ -456,11 +456,28 @@
         <!-- Library Filter Pills -->
         <div class="search-filter-pills" id="library-filter-pills" style="margin-bottom: 20px;">
           <button class="lib-pill active" data-lib-filter="all">All</button>
+          <button class="lib-pill" data-lib-filter="liked">Liked Songs</button>
           <button class="lib-pill" data-lib-filter="playlists">Playlists</button>
           <button class="lib-pill" data-lib-filter="history">Mood Scans</button>
         </div>
 
         <div id="library-content-container">
+          <!-- Liked Songs Quick Card -->
+          <div class="liked-songs-hero glass" id="library-liked-hero" style="cursor:pointer; margin-bottom: 18px; padding: 18px; border-radius: 16px; display: flex; align-items: center; justify-content: space-between; background: linear-gradient(135deg, rgba(124, 58, 237, 0.25), rgba(236, 72, 153, 0.25)); border: 1px solid rgba(168, 85, 247, 0.3);">
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <div style="width: 52px; height: 52px; border-radius: 12px; background: linear-gradient(135deg, #7c3aed, #ec4899); display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 4px 14px rgba(236, 72, 153, 0.4);">
+                <i data-lucide="heart" style="fill: currentColor; width: 26px; height: 26px;"></i>
+              </div>
+              <div>
+                <h3 style="font-size: 16px; font-weight: 700; margin: 0 0 4px 0;">Liked Songs</h3>
+                <p id="library-liked-count" style="font-size: 13px; color: var(--text-muted); margin: 0;">0 saved tracks</p>
+              </div>
+            </div>
+            <button class="btn-play-pill" id="btn-play-all-liked" title="Play Liked Songs" style="width: 40px; height: 40px; border-radius: 50%; background: var(--accent-color); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px var(--accent-glow);">
+              <i data-lucide="play" style="width: 18px; height: 18px; fill: currentColor; margin-left: 2px;"></i>
+            </button>
+          </div>
+
           <div class="playlists-grid" id="library-playlists-grid"></div>
           <div class="history-large-list" id="history-large-list" style="margin-top:20px;"></div>
         </div>
@@ -483,6 +500,41 @@
               <input type="checkbox" id="settings-theme-switch">
               <span class="slider round"></span>
             </label>
+          </div>
+
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <h3>Streaming Audio Quality</h3>
+              <p>Set preferred bitrate for JioSaavn streams</p>
+            </div>
+            <select id="settings-audio-quality" class="select-dropdown">
+              <option value="auto">Auto (Best Available)</option>
+              <option value="320kbps">Very High (320 kbps)</option>
+              <option value="160kbps">High (160 kbps)</option>
+              <option value="96kbps">Data Saver (96 kbps)</option>
+            </select>
+          </div>
+
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <h3>Audio Equalizer</h3>
+              <p>Custom 5-band EQ and sound presets</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-open-equalizer-settings">
+              <i data-lucide="sliders"></i>
+              <span>Equalizer</span>
+            </button>
+          </div>
+
+          <div class="settings-item">
+            <div class="settings-item-info">
+              <h3>Keyboard Shortcuts</h3>
+              <p>Desktop controls for playback and queue</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-open-shortcuts-settings">
+              <i data-lucide="keyboard"></i>
+              <span>View Shortcuts</span>
+            </button>
           </div>
 
           <div class="settings-item">
@@ -692,9 +744,14 @@
           <i data-lucide="chevron-down"></i>
         </button>
         <span class="np-label">Now Playing</span>
-        <button class="np-more" id="np-more" title="More options">
-          <i data-lucide="more-horizontal"></i>
-        </button>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="np-btn-sm" id="np-eq-btn" title="Audio Equalizer" style="padding:6px; color:var(--text-muted);">
+            <i data-lucide="sliders"></i>
+          </button>
+          <button class="np-btn-sm" id="np-queue-btn" title="Play Queue" style="padding:6px; color:var(--text-muted);">
+            <i data-lucide="list-music"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Large album art -->
@@ -743,7 +800,7 @@
         <button class="np-btn" id="np-next" title="Next">
           <i data-lucide="skip-forward"></i>
         </button>
-        <button class="np-btn" id="np-repeat" title="Repeat">
+        <button class="np-btn" id="np-repeat" title="Repeat (Off / All / One)">
           <i data-lucide="repeat"></i>
         </button>
       </div>
@@ -777,34 +834,224 @@
 
     <!-- JioSaavn Mini Player Bar (above bottom nav) -->
     <div id="saavn-mini-bar" style="display:none; position:fixed; bottom:65px; left:0; right:0; z-index:999;
-      background:linear-gradient(135deg,#1a1a2e,#16213e); color:#fff; padding:10px 16px;
-      box-shadow:0 -2px 20px rgba(233,30,99,0.3); border-top:1px solid rgba(233,30,99,0.3);">
-      <div style="display:flex; align-items:center; gap:12px; max-width:600px; margin:0 auto;">
-        <img id="saavn-bar-art" src="icon.png" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;">
-        <div style="flex:1; min-width:0;">
-          <div id="saavn-bar-title" style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">—</div>
-          <div id="saavn-bar-artist" style="font-size:12px;opacity:0.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">MoodBeats Stream</div>
+      background:linear-gradient(135deg,rgba(15,23,42,0.96),rgba(30,41,59,0.96)); backdrop-filter:blur(24px); color:#fff; padding:10px 16px;
+      box-shadow:0 -4px 25px rgba(0,0,0,0.35); border-top:1px solid rgba(255,255,255,0.08);">
+      <div style="display:flex; align-items:center; gap:12px; max-width:720px; margin:0 auto;">
+        <div style="position:relative; cursor:pointer;" id="saavn-bar-art-container" onclick="openNowPlaying()">
+          <img id="saavn-bar-art" src="icon.png" style="width:46px;height:46px;border-radius:10px;object-fit:cover;flex-shrink:0;box-shadow:0 3px 10px rgba(0,0,0,0.3);">
+        </div>
+        <div style="flex:1; min-width:0; cursor:pointer;" id="saavn-bar-info" onclick="openNowPlaying()">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <div id="saavn-bar-title" style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">—</div>
+            <span id="saavn-bar-quality-badge" style="font-size:9px; padding:1px 5px; border-radius:4px; background:rgba(168,85,247,0.25); color:#d8b4fe; font-weight:700; text-transform:uppercase;">320k</span>
+          </div>
+          <div id="saavn-bar-artist" style="font-size:12px;opacity:0.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">MoodBeats Stream</div>
           <!-- Progress bar -->
-          <div style="height:3px;background:rgba(255,255,255,0.2);border-radius:2px;margin-top:6px;cursor:pointer;"
-            onclick="if(state.saavnAudio){state.saavnAudio.currentTime=(event.offsetX/this.offsetWidth)*state.saavnAudio.duration}">
-            <div id="saavn-progress-bar" style="height:100%;background:#e91e63;border-radius:2px;width:0%;transition:width 0.5s linear;"></div>
+          <div style="height:4px;background:rgba(255,255,255,0.15);border-radius:3px;margin-top:6px;cursor:pointer;position:relative;"
+            onclick="event.stopPropagation();if(state.saavnAudio && state.saavnAudio.duration){state.saavnAudio.currentTime=(event.offsetX/this.offsetWidth)*state.saavnAudio.duration}">
+            <div id="saavn-progress-bar" style="height:100%;background:linear-gradient(90deg, #a855f7, #ec4899);border-radius:3px;width:0%;transition:width 0.25s linear;"></div>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:10px;opacity:0.6;margin-top:2px;">
             <span id="saavn-current-time">0:00</span>
             <span id="saavn-duration">0:00</span>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-          <button onclick="saavnPrev()" style="background:none;border:none;color:#fff;cursor:pointer;padding:6px;opacity:0.8;">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><polygon points="19,3 5,12 19,21"/><rect x="3" y="3" width="2" height="18"/></svg>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+          <button id="saavn-bar-like" class="bar-icon-btn" title="Like song" style="background:none;border:none;color:#fff;cursor:pointer;padding:6px;opacity:0.85;">
+            <i data-lucide="heart" style="width:19px;height:19px;"></i>
           </button>
-          <button id="saavn-play-btn" onclick="saavnTogglePlay()" style="background:#e91e63;border:none;color:#fff;cursor:pointer;
-            width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22"><polygon points="5,3 19,12 5,21"/></svg>
+          <button onclick="saavnPrev()" class="bar-icon-btn" title="Previous" style="background:none;border:none;color:#fff;cursor:pointer;padding:6px;opacity:0.85;">
+            <i data-lucide="skip-back" style="width:19px;height:19px;"></i>
           </button>
-          <button onclick="saavnNext()" style="background:none;border:none;color:#fff;cursor:pointer;padding:6px;opacity:0.8;">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><polygon points="5,3 19,12 5,21"/><rect x="19" y="3" width="2" height="18"/></svg>
+          <button id="saavn-play-btn" onclick="saavnTogglePlay()" title="Play/Pause" style="background:linear-gradient(135deg,#a855f7,#ec4899);border:none;color:#fff;cursor:pointer;
+            width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 14px rgba(168,85,247,0.4);">
+            <i data-lucide="play" id="saavn-play-icon" style="width:20px;height:20px;fill:currentColor;margin-left:1px;"></i>
           </button>
+          <button onclick="saavnNext()" class="bar-icon-btn" title="Next" style="background:none;border:none;color:#fff;cursor:pointer;padding:6px;opacity:0.85;">
+            <i data-lucide="skip-forward" style="width:19px;height:19px;"></i>
+          </button>
+          <button id="saavn-bar-queue" class="bar-icon-btn" title="Play Queue" style="background:none;border:none;color:#fff;cursor:pointer;padding:6px;opacity:0.85;">
+            <i data-lucide="list-music" style="width:19px;height:19px;"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Play Queue Modal -->
+    <div class="modal-backdrop" id="queue-modal" style="display:none;">
+      <div class="modal-box glass queue-modal-box" style="max-height:85vh; width:92%; max-width:540px; display:flex; flex-direction:column;">
+        <div class="modal-header" style="padding-bottom:12px; border-bottom:1px solid var(--border-color);">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <i data-lucide="list-music" class="text-accent"></i>
+            <h3 style="margin:0;">Play Queue</h3>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button class="btn btn-sm btn-secondary" id="btn-clear-queue" style="font-size:12px; padding:4px 10px;">Clear Queue</button>
+            <button class="btn-icon" id="btn-close-queue-modal"><i data-lucide="x"></i></button>
+          </div>
+        </div>
+
+        <div style="padding:14px 0 6px 0;">
+          <span style="font-size:11px; font-weight:700; color:var(--text-subtle); text-transform:uppercase; letter-spacing:0.05em;">Now Playing</span>
+          <div id="queue-now-playing-container" style="margin-top:8px;"></div>
+        </div>
+
+        <div style="flex:1; overflow-y:auto; padding:10px 0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span style="font-size:11px; font-weight:700; color:var(--text-subtle); text-transform:uppercase; letter-spacing:0.05em;">Next in Queue</span>
+            <span id="queue-count-badge" style="font-size:11px; color:var(--text-muted);">0 songs</span>
+          </div>
+          <div id="queue-upcoming-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Equalizer Modal -->
+    <div class="modal-backdrop" id="equalizer-modal" style="display:none;">
+      <div class="modal-box glass" style="width:92%; max-width:500px;">
+        <div class="modal-header">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <i data-lucide="sliders" class="text-accent"></i>
+            <h3 style="margin:0;">Equalizer</h3>
+          </div>
+          <button class="btn-icon" id="btn-close-equalizer-modal"><i data-lucide="x"></i></button>
+        </div>
+
+        <!-- Presets Row -->
+        <div style="margin-top:16px;">
+          <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:8px;">Sound Presets</label>
+          <div class="eq-presets-grid" id="eq-presets-container" style="display:flex; flex-wrap:wrap; gap:6px;">
+            <button class="eq-preset-chip active" data-preset="Flat">Flat</button>
+            <button class="eq-preset-chip" data-preset="Bass Boost">Bass Boost</button>
+            <button class="eq-preset-chip" data-preset="Vocal">Vocal</button>
+            <button class="eq-preset-chip" data-preset="Rock">Rock</button>
+            <button class="eq-preset-chip" data-preset="Electronic">Electronic</button>
+            <button class="eq-preset-chip" data-preset="Acoustic">Acoustic</button>
+            <button class="eq-preset-chip" data-preset="Dance">Dance</button>
+            <button class="eq-preset-chip" data-preset="Classical">Classical</button>
+          </div>
+        </div>
+
+        <!-- 5-Band Sliders -->
+        <div class="eq-sliders-container" style="display:flex; justify-content:space-between; align-items:flex-end; gap:8px; margin:24px 0 16px 0; padding:16px; background:rgba(0,0,0,0.15); border-radius:14px;">
+          <div class="eq-band-col" style="display:flex; flex-direction:column; align-items:center; gap:8px; flex:1;">
+            <span class="eq-gain-val" id="eq-val-60" style="font-size:10px; font-weight:700; color:var(--accent-color);">0dB</span>
+            <input type="range" orient="vertical" class="eq-slider" id="eq-slider-60" min="-12" max="12" value="0" step="1" style="height:120px; writing-mode:vertical-lr; direction:rtl;">
+            <span class="eq-freq-label" style="font-size:11px; font-weight:600; color:var(--text-muted);">60Hz</span>
+            <span style="font-size:9px; color:var(--text-subtle);">Bass</span>
+          </div>
+          <div class="eq-band-col" style="display:flex; flex-direction:column; align-items:center; gap:8px; flex:1;">
+            <span class="eq-gain-val" id="eq-val-250" style="font-size:10px; font-weight:700; color:var(--accent-color);">0dB</span>
+            <input type="range" orient="vertical" class="eq-slider" id="eq-slider-250" min="-12" max="12" value="0" step="1" style="height:120px; writing-mode:vertical-lr; direction:rtl;">
+            <span class="eq-freq-label" style="font-size:11px; font-weight:600; color:var(--text-muted);">250Hz</span>
+            <span style="font-size:9px; color:var(--text-subtle);">Low</span>
+          </div>
+          <div class="eq-band-col" style="display:flex; flex-direction:column; align-items:center; gap:8px; flex:1;">
+            <span class="eq-gain-val" id="eq-val-1000" style="font-size:10px; font-weight:700; color:var(--accent-color);">0dB</span>
+            <input type="range" orient="vertical" class="eq-slider" id="eq-slider-1000" min="-12" max="12" value="0" step="1" style="height:120px; writing-mode:vertical-lr; direction:rtl;">
+            <span class="eq-freq-label" style="font-size:11px; font-weight:600; color:var(--text-muted);">1kHz</span>
+            <span style="font-size:9px; color:var(--text-subtle);">Mid</span>
+          </div>
+          <div class="eq-band-col" style="display:flex; flex-direction:column; align-items:center; gap:8px; flex:1;">
+            <span class="eq-gain-val" id="eq-val-4000" style="font-size:10px; font-weight:700; color:var(--accent-color);">0dB</span>
+            <input type="range" orient="vertical" class="eq-slider" id="eq-slider-4000" min="-12" max="12" value="0" step="1" style="height:120px; writing-mode:vertical-lr; direction:rtl;">
+            <span class="eq-freq-label" style="font-size:11px; font-weight:600; color:var(--text-muted);">4kHz</span>
+            <span style="font-size:9px; color:var(--text-subtle);">Presence</span>
+          </div>
+          <div class="eq-band-col" style="display:flex; flex-direction:column; align-items:center; gap:8px; flex:1;">
+            <span class="eq-gain-val" id="eq-val-14000" style="font-size:10px; font-weight:700; color:var(--accent-color);">0dB</span>
+            <input type="range" orient="vertical" class="eq-slider" id="eq-slider-14000" min="-12" max="12" value="0" step="1" style="height:120px; writing-mode:vertical-lr; direction:rtl;">
+            <span class="eq-freq-label" style="font-size:11px; font-weight:600; color:var(--text-muted);">14kHz</span>
+            <span style="font-size:9px; color:var(--text-subtle);">Treble</span>
+          </div>
+        </div>
+
+        <button class="btn btn-secondary btn-sm" id="btn-reset-eq" style="width:100%;">Reset to Flat</button>
+      </div>
+    </div>
+
+    <!-- Song Options Context Menu Modal -->
+    <div class="modal-backdrop" id="song-options-modal" style="display:none;">
+      <div class="modal-box glass" style="width:92%; max-width:400px; padding:20px;">
+        <div class="song-preview-strip" id="options-modal-song-preview" style="display:flex; align-items:center; gap:12px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--border-color);">
+          <img id="options-modal-song-art" src="icon.png" style="width:48px;height:48px;border-radius:10px;object-fit:cover;">
+          <div style="flex:1; min-width:0;">
+            <div id="options-modal-song-title" style="font-weight:700; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Track Title</div>
+            <div id="options-modal-song-artist" style="font-size:13px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Artist</div>
+          </div>
+        </div>
+
+        <div class="song-options-actions" style="display:flex; flex-direction:column; gap:4px;">
+          <button class="option-action-item" id="opt-btn-play-next" style="display:flex; align-items:center; gap:12px; width:100%; padding:12px; border-radius:10px; font-size:14px; font-weight:600; color:var(--text-color); transition:background 0.2s;">
+            <i data-lucide="play-circle" style="width:20px;height:20px;color:var(--accent-color);"></i>
+            <span>Play Next</span>
+          </button>
+          <button class="option-action-item" id="opt-btn-add-queue" style="display:flex; align-items:center; gap:12px; width:100%; padding:12px; border-radius:10px; font-size:14px; font-weight:600; color:var(--text-color); transition:background 0.2s;">
+            <i data-lucide="list-plus" style="width:20px;height:20px;color:var(--accent-color);"></i>
+            <span>Add to Queue</span>
+          </button>
+          <button class="option-action-item" id="opt-btn-toggle-like" style="display:flex; align-items:center; gap:12px; width:100%; padding:12px; border-radius:10px; font-size:14px; font-weight:600; color:var(--text-color); transition:background 0.2s;">
+            <i data-lucide="heart" id="opt-like-icon" style="width:20px;height:20px;color:#ec4899;"></i>
+            <span id="opt-like-text">Like Song</span>
+          </button>
+          <button class="option-action-item" id="opt-btn-add-playlist" style="display:flex; align-items:center; gap:12px; width:100%; padding:12px; border-radius:10px; font-size:14px; font-weight:600; color:var(--text-color); transition:background 0.2s;">
+            <i data-lucide="plus-circle" style="width:20px;height:20px;color:var(--accent-color);"></i>
+            <span>Add to Playlist</span>
+          </button>
+        </div>
+
+        <button class="btn btn-secondary btn-sm" id="btn-close-options-modal" style="width:100%; margin-top:14px;">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <div class="modal-backdrop" id="shortcuts-modal" style="display:none;">
+      <div class="modal-box glass" style="width:92%; max-width:440px;">
+        <div class="modal-header">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <i data-lucide="keyboard" class="text-accent"></i>
+            <h3 style="margin:0;">Keyboard Shortcuts</h3>
+          </div>
+          <button class="btn-icon" id="btn-close-shortcuts-modal"><i data-lucide="x"></i></button>
+        </div>
+        <div class="shortcuts-list" style="margin-top:16px; display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:13px; color:var(--text-muted);">Play / Pause</span>
+            <kbd style="background:var(--surface-2); padding:3px 8px; border-radius:6px; font-family:monospace; font-size:12px; border:1px solid var(--border-color);">Space</kbd>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:13px; color:var(--text-muted);">Next / Previous Track</span>
+            <span style="display:flex; gap:4px;">
+              <kbd style="background:var(--surface-2); padding:3px 8px; border-radius:6px; font-family:monospace; font-size:12px; border:1px solid var(--border-color);">K</kbd>
+              <kbd style="background:var(--surface-2); padding:3px 8px; border-radius:6px; font-family:monospace; font-size:12px; border:1px solid var(--border-color);">J</kbd>
+            </span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:13px; color:var(--text-muted);">Seek Forward / Backward</span>
+            <span style="display:flex; gap:4px;">
+              <kbd style="background:var(--surface-2); padding:3px 8px; border-radius:6px; font-family:monospace; font-size:12px; border:1px solid var(--border-color);">→</kbd>
+              <kbd style="background:var(--surface-2); padding:3px 8px; border-radius:6px; font-family:monospace; font-size:12px; border:1px solid var(--border-color);">←</kbd>
+            </span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:13px; color:var(--text-muted);">Volume Up / Down</span>
+            <span style="display:flex; gap:4px;">
+              <kbd style="background:var(--surface-2); padding:3px 8px; border-radius:6px; font-family:monospace; font-size:12px; border:1px solid var(--border-color);">↑</kbd>
+              <kbd style="background:var(--surface-2); padding:3px 8px; border-radius:6px; font-family:monospace; font-size:12px; border:1px solid var(--border-color);">↓</kbd>
+            </span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:13px; color:var(--text-muted);">Like / Heart Track</span>
+            <kbd style="background:var(--surface-2); padding:3px 8px; border-radius:6px; font-family:monospace; font-size:12px; border:1px solid var(--border-color);">L</kbd>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:13px; color:var(--text-muted);">Shuffle On/Off</span>
+            <kbd style="background:var(--surface-2); padding:3px 8px; border-radius:6px; font-family:monospace; font-size:12px; border:1px solid var(--border-color);">S</kbd>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:13px; color:var(--text-muted);">Cycle Repeat Mode</span>
+            <kbd style="background:var(--surface-2); padding:3px 8px; border-radius:6px; font-family:monospace; font-size:12px; border:1px solid var(--border-color);">R</kbd>
+          </div>
         </div>
       </div>
     </div>

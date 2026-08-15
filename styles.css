@@ -2628,3 +2628,195 @@ body.phone-controller-active .app-container    { padding-bottom: 0; max-width: 1
   100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
 }
 
+/* =====================================================
+   PHASE 1: QUEUE, EQUALIZER, LIKED SONGS & SPOTIFY UX
+   ===================================================== */
+
+/* Liked Heart Active State */
+.liked,
+.np-like.liked i,
+#saavn-bar-like.liked i,
+.btn-card-like.liked i {
+  color: #EC4899 !important;
+  fill: #EC4899 !important;
+  animation: heartBeat 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes heartBeat {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+/* Active Repeat & Shuffle States */
+.np-btn.active {
+  color: var(--accent-color) !important;
+  position: relative;
+}
+.np-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent-color);
+}
+.np-btn.repeat-one::after {
+  content: '1';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--accent-color);
+  background: none;
+  width: auto;
+  height: auto;
+}
+
+/* Play Queue Item Styles */
+.queue-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-fast);
+}
+.queue-item:hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+.queue-item.active-playing {
+  background: var(--accent-light);
+  border-color: var(--accent-color);
+}
+.queue-item-art {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.queue-item-info {
+  flex: 1;
+  min-width: 0;
+}
+.queue-item-title {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-color);
+}
+.queue-item-artist {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.queue-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.queue-action-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.queue-action-btn:hover {
+  color: var(--text-color);
+  background: rgba(255,255,255,0.08);
+}
+.queue-action-btn.delete:hover {
+  color: #EF4444;
+}
+
+/* Equalizer Presets & Sliders */
+.eq-preset-chip {
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--surface-2);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.eq-preset-chip:hover {
+  background: var(--surface-3);
+  color: var(--text-color);
+}
+.eq-preset-chip.active {
+  background: var(--accent-color);
+  color: #FFFFFF;
+  border-color: var(--accent-color);
+  box-shadow: 0 2px 10px var(--accent-glow);
+}
+.eq-slider {
+  -webkit-appearance: slider-vertical;
+  width: 18px;
+  accent-color: var(--accent-color);
+  cursor: pointer;
+}
+
+/* Context Menu Action Buttons */
+.option-action-item {
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+.option-action-item:hover {
+  background: var(--surface-2);
+}
+
+/* Liked Hero Hover */
+.liked-songs-hero {
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.liked-songs-hero:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Song card 3-dots and heart triggers */
+.song-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn-card-action {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 6px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.btn-card-action:hover {
+  color: var(--text-color);
+  background: rgba(255,255,255,0.1);
+}
+
+

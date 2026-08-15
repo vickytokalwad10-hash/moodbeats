@@ -373,9 +373,18 @@ async function jsaGetFeaturedPlaylists() {
 // ─────────────────────────────────────────────────────────────────
 
 function jsaBestStreamUrl(song) {
-  if (song?.downloadUrl) return song.downloadUrl;
-  if (song?.streamFallbacks?.length) return song.streamFallbacks[0];
-  if (song?.streamUrl) return song.streamUrl;
+  if (!song) return null;
+  const userQuality = localStorage.getItem('moodbeats_audio_quality') || 'auto';
+  
+  if (userQuality !== 'auto' && song._raw?.downloadUrl && Array.isArray(song._raw.downloadUrl)) {
+    const targetKbps = userQuality.replace('kbps', '');
+    const matched = song._raw.downloadUrl.find(u => String(u.quality).includes(targetKbps));
+    if (matched?.url) return matched.url;
+  }
+
+  if (song.downloadUrl) return song.downloadUrl;
+  if (song.streamFallbacks?.length) return song.streamFallbacks[0];
+  if (song.streamUrl) return song.streamUrl;
   return null;
 }
 
