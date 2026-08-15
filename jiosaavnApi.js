@@ -15,6 +15,8 @@
 const JSA_HOSTS = [
   'https://saavn.sumit.co',
   'https://jiosaavn-api-privatecvc2.vercel.app',
+  'https://saavn.me',
+  'https://jiosaavn.netlify.app',
 ];
 
 let _jsaWorkingHost = JSA_HOSTS[0];
@@ -323,6 +325,33 @@ async function jsaGetPlaylist(playlistId) {
   return _mapPlaylist(p);
 }
 
+async function jsaGetSong(songId) {
+  if (!songId) return null;
+  try {
+    const json = await jsaFetch(`/api/songs?id=${songId}`);
+    const data = json?.data || json;
+    const rawSong = Array.isArray(data) ? data[0] : (data?.songs ? data.songs[0] : data);
+    return rawSong ? _mapSong(rawSong) : null;
+  } catch (err) {
+    console.warn(`[JSA] Single song fetch failed for ${songId}:`, err.message);
+  }
+  return null;
+}
+
+async function jsaGetLyrics(songId) {
+  if (!songId) return null;
+  try {
+    const json = await jsaFetch(`/api/lyrics?id=${songId}`);
+    const data = json?.data || json;
+    if (data?.lyrics) {
+      return jsaDecodeEntities(data.lyrics);
+    }
+  } catch (err) {
+    console.warn(`[JSA] Lyrics fetch failed for ${songId}:`, err.message);
+  }
+  return null;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // 7. MOOD & ACTIVITY SOUNDSCAPE BUILDER
 // ─────────────────────────────────────────────────────────────────
@@ -467,11 +496,13 @@ window.JSA = {
   getArtist:              jsaGetArtist,
   getAlbum:               jsaGetAlbum,
   getPlaylist:            jsaGetPlaylist,
+  getSong:                jsaGetSong,
   getMoodPlaylist:        jsaGetMoodPlaylist,
   getSoundscapePlaylist:  jsaGetSoundscapePlaylist,
   getTrackRadio:          jsaGetTrackRadio,
   soundscapeConfigs:      SOUNDSCAPE_CONFIGS,
   getFeaturedPlaylists:   jsaGetFeaturedPlaylists,
+  getLyrics:              jsaGetLyrics,
   bestStreamUrl:          jsaBestStreamUrl,
   nextFallbackUrl:        jsaNextFallbackUrl,
   decodeEntities:         jsaDecodeEntities,

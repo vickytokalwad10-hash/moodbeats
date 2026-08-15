@@ -285,6 +285,61 @@ const state = {
 // ==========================================
 // 2b. Core Helper Functions (HTML escaping, Toast, YouTube Search)
 // ==========================================
+
+/**
+ * Standalone YouTube search using Invidious public API instances.
+ * No local server or API key required. Works fully offline from laptop.
+ * Falls back through multiple public Invidious instances automatically.
+ */
+const INVIDIOUS_INSTANCES = [
+  'https://inv.nadeko.net',
+  'https://invidious.privacyredirect.com',
+  'https://invidious.fdn.fr',
+  'https://vid.puffyan.us',
+  'https://yt.artemislena.eu',
+];
+let _invidiousWorkingIdx = 0;
+
+async function searchYouTubeGlobally(query, limit = 8) {
+  if (!query || !query.trim()) return [];
+  const q = encodeURIComponent(query.trim() + ' audio');
+  const orderedInstances = [
+    INVIDIOUS_INSTANCES[_invidiousWorkingIdx],
+    ...INVIDIOUS_INSTANCES.filter((_, i) => i !== _invidiousWorkingIdx),
+  ];
+
+  for (let i = 0; i < orderedInstances.length; i++) {
+    const base = orderedInstances[i];
+    const url = `${base}/api/v1/search?q=${q}&type=video&fields=videoId,title,author,lengthSeconds&page=1`;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' },
+      });
+      clearTimeout(timeout);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) continue;
+      _invidiousWorkingIdx = INVIDIOUS_INSTANCES.indexOf(base);
+      return data.slice(0, limit).map(v => ({
+        videoId: v.videoId,
+        title: v.title || 'Unknown',
+        artist: v.author || 'YouTube',
+        duration: v.lengthSeconds || 0,
+        image: `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`,
+        genre: 'YouTube',
+      }));
+    } catch (e) {
+      console.warn(`[YT Search] ${base} failed: ${e.message}`);
+    }
+  }
+  // All Invidious instances failed — return empty gracefully
+  console.warn('[YT Search] All Invidious instances unavailable. YouTube results skipped.');
+  return [];
+}
+
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   return String(str)
@@ -573,9 +628,14 @@ function initEqualizer() {
       prevNode.connect(f);
       prevNode = f;
     });
-    prevNode.connect(state.eqContext.destination);
 
-    console.log('[MoodBeats EQ] Web Audio 5-band Equalizer initialized.');
+    // Phase 3: Web Audio Analyser Node
+    state.eqAnalyser = state.eqContext.createAnalyser();
+    state.eqAnalyser.fftSize = 256;
+    prevNode.connect(state.eqAnalyser);
+    state.eqAnalyser.connect(state.eqContext.destination);
+
+    console.log('[MoodBeats EQ] Web Audio 5-band Equalizer and Analyser initialized.');
   } catch(err) {
     console.warn('[MoodBeats EQ] AudioContext initialization failed (falling back to standard audio):', err.message);
   }
@@ -1287,7 +1347,12 @@ function navigateTo(viewId) {
       console.log(`Laptop polling pairing session: ${state.sessionId}`);
       state.syncPollInterval = setInterval(async () => {
         try {
-          const response = await fetch(`${getServerUrl()}/api/sync?session=${state.sessionId}`);
+          const serverUrl = getServerUrl();
+          if (!serverUrl || serverUrl.includes('capacitor://') || serverUrl.includes('localhost') && !window._serverConfirmedAlive) {
+            // Skip polling silently when running standalone without laptop server
+            return;
+          }
+          const response = await fetch(`${serverUrl}/api/sync?session=${state.sessionId}`, { signal: AbortSignal.timeout(3000) });
           if (response.ok) {
             const data = await response.json();
             if (data.active) {
@@ -2237,6 +2302,14 @@ function syncNowPlayingPanel(song, index) {
   
   // Art playing animation
   if (npArt) npArt.classList.add('playing');
+
+  // Phase 3: Refresh lyrics if drawer is open
+  if (document.getElementById('np-lyrics-drawer')?.style.display === 'flex') {
+    loadLyricsForCurrentSong();
+  }
+
+  // Phase 3: Start Visualizer
+  startVisualizer();
 }
 
 function openNowPlaying() {
@@ -2245,6 +2318,9 @@ function openNowPlaying() {
   panel.classList.add('open');
   document.body.style.overflow = 'hidden';
   lucide.createIcons();
+
+  // Phase 3: Start visualizer tick when NP opens
+  startVisualizer();
 }
 
 function closeNowPlaying() {
@@ -2861,25 +2937,24 @@ async function onUnifiedSearch(queryRaw) {
       } catch(e) {}
     }
 
-    // Fallback 2: Direct raw fetch if JSA object had any issue
-    if (songs.length === 0 && artists.length === 0) {
+    // Fallback 2: Try raw JSA fetch with a direct path (goes through server proxy)
+    if (songs.length === 0 && artists.length === 0 && window.JSA) {
       try {
-        const res = await fetch(`https://saavn.sumit.co/api/search/songs?query=${encodeURIComponent(query)}&page=1&limit=15`);
-        if (res.ok) {
-          const raw = await res.json();
-          const list = raw?.data?.results || raw?.results || [];
+        const raw = await window.JSA.fetch(`/api/search?query=${encodeURIComponent(query)}`);
+        const list = raw?.data?.songs?.results || raw?.results?.songs?.results || [];
+        if (list.length > 0) {
           songs = list.map(s => ({
             id: s.id,
-            title: s.name || s.title || 'Unknown',
+            title: jsaDecodeEntities ? jsaDecodeEntities(s.name || s.title || 'Unknown') : (s.name || 'Unknown'),
             artist: (s.artists?.primary?.map(a => a.name).join(', ')) || s.primaryArtists || 'Unknown Artist',
-            album: s.album?.name || s.album || '',
-            duration: s.duration || 0,
+            album: s.album?.name || '',
+            duration: Number(s.duration) || 0,
             image: s.image?.[2]?.url || s.image?.[1]?.url || s.image?.[0]?.url || 'icon.png',
-            downloadUrl: s.downloadUrl?.[4]?.url || s.downloadUrl?.[3]?.url || s.downloadUrl?.[2]?.url || null,
+            downloadUrl: s.downloadUrl?.[4]?.url || s.downloadUrl?.[3]?.url || null,
           }));
         }
       } catch(e) {
-        console.warn('Direct fetch fallback failed:', e);
+        console.warn('Fallback 2 JSA direct search failed:', e);
       }
     }
 
@@ -3745,6 +3820,270 @@ function getServerUrl() {
 }
 
 // ==========================================
+// Phase 3: Audio Visualizer
+// ==========================================
+let visualizerActive = false;
+
+function startVisualizer() {
+  if (visualizerActive) return;
+  visualizerActive = true;
+  requestAnimationFrame(visualizerTick);
+}
+
+function visualizerTick() {
+  const panel = document.getElementById('now-playing-panel');
+  if (!panel || !panel.classList.contains('open')) {
+    visualizerActive = false;
+    return;
+  }
+  drawVisualizerFrame();
+  requestAnimationFrame(visualizerTick);
+}
+
+function drawVisualizerFrame() {
+  const canvas = document.getElementById('np-visualizer-canvas');
+  if (!canvas) return;
+
+  if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+  }
+
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+  const cx = width / 2;
+  const cy = height / 2;
+
+  // Clear with semi-transparent background for trails
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.2)';
+  ctx.fillRect(0, 0, width, height);
+
+  const artEl = document.getElementById('np-art');
+  const baseRadius = artEl ? (artEl.offsetWidth / 2 + 5) : 135;
+
+  if (state.eqAnalyser && state.saavnIsPlaying) {
+    const bufferLength = state.eqAnalyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    state.eqAnalyser.getByteFrequencyData(dataArray);
+
+    // Sum first few frequency bins for bass pulse
+    let bass = 0;
+    const numBassBins = 8;
+    for (let i = 0; i < numBassBins; i++) {
+      bass += dataArray[i];
+    }
+    bass /= numBassBins;
+
+    // Draw soft bass glow aura
+    const pulseIntensity = (bass / 255) * 35;
+    if (pulseIntensity > 0) {
+      ctx.shadowBlur = pulseIntensity + 15;
+      ctx.shadowColor = 'rgba(168, 85, 247, 0.5)';
+      
+      ctx.beginPath();
+      ctx.arc(cx, cy, baseRadius, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(168, 85, 247, 0.04)';
+      ctx.fill();
+      ctx.shadowBlur = 0; // reset
+    }
+
+    // Draw radial audio frequency lines
+    const numBars = 80;
+    const angleStep = (Math.PI * 2) / numBars;
+
+    for (let i = 0; i < numBars; i++) {
+      const angle = i * angleStep;
+      // Focus on lower to mid frequencies
+      const binIdx = Math.floor((i / numBars) * (bufferLength * 0.75));
+      const val = dataArray[binIdx] || 0;
+      
+      const barLength = (val / 255) * 50;
+      
+      const startX = cx + Math.cos(angle) * baseRadius;
+      const startY = cy + Math.sin(angle) * baseRadius;
+      const endX = cx + Math.cos(angle) * (baseRadius + barLength);
+      const endY = cy + Math.sin(angle) * (baseRadius + barLength);
+
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      
+      const grad = ctx.createLinearGradient(startX, startY, endX, endY);
+      grad.addColorStop(0, 'rgba(168, 85, 247, 0.9)'); // Purple
+      grad.addColorStop(1, 'rgba(236, 72, 153, 0.9)'); // Pink
+      
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+  } else {
+    // Idle state: Draw a slow breathing ring
+    const time = Date.now() * 0.002;
+    const breath = Math.sin(time) * 4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, baseRadius + breath, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.25)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+}
+
+// ==========================================
+// Phase 3: Spotify-style Lyrics Drawer
+// ==========================================
+async function toggleLyricsDrawer() {
+  const drawer = document.getElementById('np-lyrics-drawer');
+  if (!drawer) return;
+
+  const btn = document.getElementById('np-lyrics-btn');
+  const isHidden = drawer.style.display === 'none' || !drawer.style.display;
+
+  if (isHidden) {
+    drawer.style.display = 'flex';
+    if (btn) btn.classList.add('text-accent');
+    await loadLyricsForCurrentSong();
+  } else {
+    drawer.style.display = 'none';
+    if (btn) btn.classList.remove('text-accent');
+  }
+}
+
+async function loadLyricsForCurrentSong() {
+  const drawer = document.getElementById('np-lyrics-drawer');
+  if (!drawer || drawer.style.display === 'none') return;
+
+  const content = document.getElementById('np-lyrics-content');
+  if (!content) return;
+
+  content.innerHTML = '<p class="lyrics-loading">Loading lyrics...</p>';
+
+  const song = state.saavnCurrentSong || state.currentPlayerSong;
+  if (!song || !song.id) {
+    content.innerHTML = '<p class="lyrics-empty">Lyrics are only available for JioSaavn streaming audio tracks.</p>';
+    return;
+  }
+
+  try {
+    const lyrics = await window.JSA.getLyrics(song.id);
+    if (lyrics && lyrics.trim()) {
+      const cleanText = lyrics.replace(/<br\s*\/?>/gi, '\n');
+      const lines = cleanText.split('\n');
+      let html = '';
+      lines.forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed) {
+          html += `<div class="lyrics-line">${escapeHtml(trimmed)}</div>`;
+        }
+      });
+      content.innerHTML = html || '<p class="lyrics-empty">Lyrics not available for this song</p>';
+    } else {
+      content.innerHTML = '<p class="lyrics-empty">Lyrics not available for this song</p>';
+    }
+  } catch (err) {
+    console.error('[MoodBeats Lyrics] Error loading lyrics:', err);
+    content.innerHTML = '<p class="lyrics-empty">Failed to load lyrics</p>';
+  }
+}
+
+function closeLyricsDrawer() {
+  const drawer = document.getElementById('np-lyrics-drawer');
+  if (drawer) {
+    drawer.style.display = 'none';
+  }
+  const btn = document.getElementById('np-lyrics-btn');
+  if (btn) btn.classList.remove('text-accent');
+}
+
+// ==========================================
+// Phase 3: Social Sharing Card
+// ==========================================
+function openShareCardModal(song) {
+  if (!song) return;
+  state.shareTargetSong = song;
+
+  const modal = document.getElementById('share-card-modal');
+  const title = document.getElementById('share-card-title');
+  const artist = document.getElementById('share-card-artist');
+  const art = document.getElementById('share-card-art');
+  const moodText = document.getElementById('share-card-mood-text');
+
+  if (title) title.innerText = song.title || 'Track Title';
+  if (artist) artist.innerText = song.artist || 'Artist';
+  if (art) art.src = song.image || 'icon.png';
+
+  // Determine current vibe/mood
+  const vibe = state.selectedMood || 'Groovy';
+  const emoji = MOOD_METADATA[vibe]?.emoji || '✨';
+  if (moodText) moodText.innerText = `${emoji} Vibe: ${vibe}`;
+
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeShareCardModal() {
+  const modal = document.getElementById('share-card-modal');
+  if (modal) modal.style.display = 'none';
+  state.shareTargetSong = null;
+}
+
+function shareSongNative() {
+  const song = state.shareTargetSong;
+  if (!song) return;
+
+  const vibe = state.selectedMood || 'Groovy';
+  const emoji = MOOD_METADATA[vibe]?.emoji || '✨';
+  const vibeText = `${emoji} Vibe: ${vibe}`;
+  const shareUrl = `${window.location.origin}/?song=${song.id || song.videoId}`;
+
+  const shareData = {
+    title: `MoodBeats - ${song.title}`,
+    text: `Vibing to "${song.title}" by ${song.artist} on MoodBeats. Vibe: ${vibeText}!`,
+    url: shareUrl
+  };
+
+  if (navigator.share) {
+    navigator.share(shareData)
+      .then(() => {
+        showToast('✨ Shared successfully!');
+        closeShareCardModal();
+      })
+      .catch((err) => {
+        console.warn('[MoodBeats Share] Native share failed, copying link instead:', err);
+        copyShareLinkToClipboard(song);
+      });
+  } else {
+    copyShareLinkToClipboard(song);
+  }
+}
+
+function copyShareLinkToClipboard(song) {
+  const target = song || state.shareTargetSong;
+  if (!target) return;
+
+  const link = `${window.location.origin}/?song=${target.id || target.videoId}`;
+  navigator.clipboard.writeText(link)
+    .then(() => {
+      showToast('✨ Song link copied to clipboard!');
+      closeShareCardModal();
+    })
+    .catch(() => {
+      const input = document.createElement('input');
+      input.value = link;
+      document.body.appendChild(input);
+      input.select();
+      try {
+        document.execCommand('copy');
+        showToast('✨ Song link copied to clipboard!');
+        closeShareCardModal();
+      } catch (err) {
+        showToast('❌ Failed to copy link');
+      }
+      document.body.removeChild(input);
+    });
+}
+
+// ==========================================
 // 11. Initialization & Listeners Setup
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
@@ -4100,6 +4439,19 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (e) {}
   }
+
+  // Handle shared song link URL parameters
+  const sharedSongId = urlParams.get('song');
+  if (sharedSongId && window.JSA) {
+    window.JSA.getSong(sharedSongId).then(song => {
+      if (song) {
+        saavnPlaySong(song);
+        openNowPlaying();
+      }
+    }).catch(err => {
+      console.warn('[MoodBeats] Failed to load shared song:', err);
+    });
+  }
   
   lucide.createIcons();
   
@@ -4291,6 +4643,39 @@ document.addEventListener('DOMContentLoaded', () => {
       if (target) openAddToPlaylistModal(target);
     });
   }
+
+  // Phase 3: Lyrics, Visualizer, and Share Card bindings
+  const npLyricsBtn = document.getElementById('np-lyrics-btn');
+  if (npLyricsBtn) npLyricsBtn.addEventListener('click', toggleLyricsDrawer);
+
+  const btnCloseLyrics = document.getElementById('btn-close-lyrics');
+  if (btnCloseLyrics) btnCloseLyrics.addEventListener('click', closeLyricsDrawer);
+
+  const npShareBtn = document.getElementById('np-share-btn');
+  if (npShareBtn) {
+    npShareBtn.addEventListener('click', () => {
+      const current = state.saavnCurrentSong || state.currentPlayerSong;
+      if (current) openShareCardModal(current);
+    });
+  }
+
+  const optBtnShareSong = document.getElementById('opt-btn-share-song');
+  if (optBtnShareSong) {
+    optBtnShareSong.addEventListener('click', () => {
+      const target = state.songOptionsTarget;
+      closeSongOptionsModal();
+      if (target) openShareCardModal(target);
+    });
+  }
+
+  const btnCloseShareModal = document.getElementById('btn-close-share-modal');
+  if (btnCloseShareModal) btnCloseShareModal.addEventListener('click', closeShareCardModal);
+
+  const btnNativeShare = document.getElementById('btn-native-share');
+  if (btnNativeShare) btnNativeShare.addEventListener('click', shareSongNative);
+
+  const btnCopyShareLink = document.getElementById('btn-copy-share-link');
+  if (btnCopyShareLink) btnCopyShareLink.addEventListener('click', () => copyShareLinkToClipboard());
 
   // Global Desktop Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {

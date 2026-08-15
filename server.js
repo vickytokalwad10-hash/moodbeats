@@ -1,8 +1,84 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+
+// ─────────────────────────────────────────────────────────────────
+// JioSaavn API Proxy Configuration
+// ─────────────────────────────────────────────────────────────────
+const JSA_HOSTS = [
+  'https://saavn.sumit.co',
+  'https://jiosaavn-api-privatecvc2.vercel.app',
+  'https://saavn.me',
+  'https://jiosaavn.netlify.app',
+];
+let _jsaWorkingHost = JSA_HOSTS[0];
+
+function proxyJsaRequest(apiPath, res) {
+  const orderedHosts = [_jsaWorkingHost, ...JSA_HOSTS.filter(h => h !== _jsaWorkingHost)];
+
+  function tryHost(hostIndex) {
+    if (hostIndex >= orderedHosts.length) {
+      res.statusCode = 502;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.end(JSON.stringify({ error: 'All JioSaavn API hosts unavailable' }));
+      return;
+    }
+
+    const host = orderedHosts[hostIndex];
+    const fullUrl = `${host}${apiPath}`;
+    console.log(`[JSA Proxy] → ${fullUrl}`);
+
+    const mod = fullUrl.startsWith('https') ? https : http;
+    const req = mod.get(fullUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 MoodBeats/1.4.0',
+      },
+      timeout: 8000,
+    }, (apiRes) => {
+      if (apiRes.statusCode < 200 || apiRes.statusCode >= 300) {
+        console.warn(`[JSA Proxy] ${host} returned HTTP ${apiRes.statusCode}, trying next host`);
+        apiRes.resume();
+        tryHost(hostIndex + 1);
+        return;
+      }
+
+      _jsaWorkingHost = host; // Remember which host worked
+      let data = '';
+      apiRes.on('data', chunk => { data += chunk; });
+      apiRes.on('end', () => {
+        try {
+          JSON.parse(data); // Validate it's JSON
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('X-JSA-Host', host);
+          res.end(data);
+        } catch (e) {
+          console.warn(`[JSA Proxy] ${host} returned non-JSON, trying next host`);
+          tryHost(hostIndex + 1);
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      console.warn(`[JSA Proxy] ${host} error: ${err.message}, trying next host`);
+      tryHost(hostIndex + 1);
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      console.warn(`[JSA Proxy] ${host} timed out, trying next host`);
+      tryHost(hostIndex + 1);
+    });
+  }
+
+  tryHost(0);
+}
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -212,6 +288,19 @@ const server = http.createServer((req, res) => {
       res.statusCode = 500;
       res.end(JSON.stringify([]));
     });
+    return;
+  }
+
+  // JioSaavn API Proxy — handles /api/search, /api/songs, /api/artists, /api/albums,
+  // /api/playlists, /api/lyrics, etc. by forwarding to external JioSaavn mirror hosts.
+  const LOCAL_API_PREFIXES = ['/api/ip', '/api/sync', '/api/yt-search'];
+  const isLocalApi = LOCAL_API_PREFIXES.some(prefix => req.url.startsWith(prefix));
+
+  if (req.method === 'GET' && req.url.startsWith('/api/') && !isLocalApi) {
+    // Strip query params from path check but pass them through to the proxy
+    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const apiPath = urlObj.pathname + urlObj.search; // e.g. /api/search/songs?query=xyz
+    proxyJsaRequest(apiPath, res);
     return;
   }
 

@@ -2961,4 +2961,145 @@ body.phone-controller-active .app-container    { padding-bottom: 0; max-width: 1
   background: var(--surface-2);
 }
 
+/* Phase 3: Audio Visualizer Canvas */
+.np-art-wrapper {
+  position: relative;
+}
+.np-visualizer-canvas {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  right: -10px;
+  bottom: -10px;
+  width: calc(100% + 20px);
+  height: calc(100% + 20px);
+  border-radius: 24px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.85;
+}
+.np-art {
+  position: relative;
+  z-index: 2;
+}
+
+/* Phase 3: Spotify-style Lyrics Drawer */
+.np-lyrics-drawer {
+  position: absolute;
+  top: 60px;
+  left: 16px;
+  right: 16px;
+  bottom: 110px;
+  background: rgba(18, 18, 18, 0.94);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.5);
+  animation: modalFadeIn 0.25s ease-out;
+}
+.lyrics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  margin-bottom: 12px;
+}
+.lyrics-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scrollbar-width: thin;
+}
+.lyrics-line {
+  font-size: 19px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.4;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.lyrics-line:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+.lyrics-line.active {
+  color: #ffffff;
+  transform: scale(1.03);
+  transform-origin: left center;
+  text-shadow: 0 0 12px var(--accent-color);
+}
+.lyrics-loading, .lyrics-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 15px;
+  margin-top: 40px;
+}
+
+/* Phase 3: Share Card Preview */
+.share-card-preview {
+  background: linear-gradient(145deg, #1e1b4b, #0f172a, #090d16);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  position: relative;
+  overflow: hidden;
+}
+.share-card-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-color);
+}
+.share-card-art {
+  width: 150px;
+  height: 150px;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.share-card-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+.share-card-artist {
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
+}
+.share-card-mood-pill {
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  backdrop-filter: blur(8px);
+}
+
 

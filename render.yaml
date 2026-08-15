@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: moodbeats-server
+    runtime: node
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 10000
+    healthCheckPath: /api/ip
+    autoDeploy: true

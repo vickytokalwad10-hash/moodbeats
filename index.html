@@ -56,7 +56,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <!-- Lucide Icons CDN -->
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="lucide.min.js"></script>
 </head>
 <body>
   <!-- Dynamic background blobs -->
@@ -766,7 +766,13 @@
           <i data-lucide="chevron-down"></i>
         </button>
         <span class="np-label">Now Playing</span>
-        <div style="display:flex; align-items:center; gap:8px;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <button class="np-btn-sm" id="np-lyrics-btn" title="Lyrics" style="padding:6px; color:var(--text-muted);">
+            <i data-lucide="mic-2"></i>
+          </button>
+          <button class="np-btn-sm" id="np-share-btn" title="Share Song Card" style="padding:6px; color:var(--text-muted);">
+            <i data-lucide="share-2"></i>
+          </button>
           <button class="np-btn-sm" id="np-radio-btn" title="Start Track Radio" style="padding:6px; color:var(--text-muted);">
             <i data-lucide="radio"></i>
           </button>
@@ -779,10 +785,25 @@
         </div>
       </div>
 
-      <!-- Large album art -->
+      <!-- Large album art & Audio Visualizer canvas -->
       <div class="np-art-wrapper">
+        <canvas id="np-visualizer-canvas" class="np-visualizer-canvas"></canvas>
         <div class="np-art" id="np-art">
           <i data-lucide="music-4" class="np-art-icon"></i>
+        </div>
+      </div>
+
+      <!-- Scrollable Lyrics Container (Toggled via #np-lyrics-btn) -->
+      <div class="np-lyrics-drawer glass" id="np-lyrics-drawer" style="display:none;">
+        <div class="lyrics-header">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <i data-lucide="mic-2" class="text-accent" style="width:18px;height:18px;"></i>
+            <span style="font-weight:700; font-size:15px; color:var(--text-color);">Lyrics</span>
+          </div>
+          <button class="btn-icon" id="btn-close-lyrics" style="padding:4px;"><i data-lucide="x"></i></button>
+        </div>
+        <div class="lyrics-content" id="np-lyrics-content">
+          <p class="lyrics-loading">Loading lyrics...</p>
         </div>
       </div>
 
@@ -1011,6 +1032,10 @@
             <i data-lucide="radio" style="width:20px;height:20px;color:var(--accent-color);"></i>
             <span>Start Track Radio</span>
           </button>
+          <button class="option-action-item" id="opt-btn-share-song" style="display:flex; align-items:center; gap:12px; width:100%; padding:12px; border-radius:10px; font-size:14px; font-weight:600; color:var(--text-color); transition:background 0.2s;">
+            <i data-lucide="share-2" style="width:20px;height:20px;color:var(--accent-color);"></i>
+            <span>Share Song Card</span>
+          </button>
           <button class="option-action-item" id="opt-btn-play-next" style="display:flex; align-items:center; gap:12px; width:100%; padding:12px; border-radius:10px; font-size:14px; font-weight:600; color:var(--text-color); transition:background 0.2s;">
             <i data-lucide="play-circle" style="width:20px;height:20px;color:var(--accent-color);"></i>
             <span>Play Next</span>
@@ -1030,6 +1055,46 @@
         </div>
 
         <button class="btn btn-secondary btn-sm" id="btn-close-options-modal" style="width:100%; margin-top:14px;">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Share Song / Mood Card Modal -->
+    <div class="modal-backdrop" id="share-card-modal" style="display:none;">
+      <div class="modal-box glass" style="width:92%; max-width:380px; padding:20px;">
+        <div class="modal-header" style="margin-bottom:14px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <i data-lucide="share-2" class="text-accent"></i>
+            <h3 style="margin:0;">Share MoodBeat</h3>
+          </div>
+          <button class="btn-icon" id="btn-close-share-modal"><i data-lucide="x"></i></button>
+        </div>
+
+        <!-- Share Preview Card (Instagram/Spotify Story Style) -->
+        <div class="share-card-preview" id="share-card-preview">
+          <div class="share-card-brand">
+            <i data-lucide="music-4" style="width:16px;height:16px;"></i>
+            <span>MoodBeats</span>
+          </div>
+          <img id="share-card-art" src="icon.png" class="share-card-art" onerror="this.src='icon.png'">
+          <div class="share-card-info">
+            <div id="share-card-title" class="share-card-title">Track Title</div>
+            <div id="share-card-artist" class="share-card-artist">Artist</div>
+          </div>
+          <div class="share-card-mood-pill" id="share-card-mood-pill">
+            <span id="share-card-mood-text">✨ Vibe: Happy</span>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:18px;">
+          <button class="btn btn-primary" id="btn-native-share" style="width:100%;">
+            <i data-lucide="send"></i>
+            <span>Share to Apps</span>
+          </button>
+          <button class="btn btn-secondary" id="btn-copy-share-link" style="width:100%;">
+            <i data-lucide="copy"></i>
+            <span>Copy Song Link</span>
+          </button>
+        </div>
       </div>
     </div>
 
