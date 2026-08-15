@@ -13,11 +13,10 @@
 // 1. HOST REGISTRY
 // ─────────────────────────────────────────────────────────────────
 const JSA_HOSTS = [
+  'https://moodbeats-tan.vercel.app',
   'https://moodbeats-gtai.onrender.com',
   'https://saavn.sumit.co',
   'https://jiosaavn-api-privatecvc2.vercel.app',
-  'https://saavn.me',
-  'https://jiosaavn.netlify.app',
 ];
 
 let _jsaWorkingHost = JSA_HOSTS[0];

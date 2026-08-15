@@ -3848,7 +3848,7 @@ function getServerUrl() {
   if (origin && !origin.includes('localhost') && !origin.includes('127.0.0.1') && !origin.includes('capacitor://') && origin.startsWith('http')) {
     return origin.replace(/\/$/, '');
   }
-  return 'https://moodbeats-gtai.onrender.com';
+  return 'https://moodbeats-tan.vercel.app';
 }
 
 // ==========================================

@@ -2,82 +2,91 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const CryptoJS = require('crypto-js');
 
 const PORT = process.env.PORT || 3000;
 
 // ─────────────────────────────────────────────────────────────────
-// JioSaavn API Proxy Configuration
+// Built-in Native JioSaavn Engine with 320kbps DES Decryption
 // ─────────────────────────────────────────────────────────────────
-const JSA_HOSTS = [
-  'https://saavn.sumit.co',
-  'https://jiosaavn-api-privatecvc2.vercel.app',
-  'https://saavn.me',
-  'https://jiosaavn.netlify.app',
-];
-let _jsaWorkingHost = JSA_HOSTS[0];
 
-function proxyJsaRequest(apiPath, res) {
-  const orderedHosts = [_jsaWorkingHost, ...JSA_HOSTS.filter(h => h !== _jsaWorkingHost)];
-
-  function tryHost(hostIndex) {
-    if (hostIndex >= orderedHosts.length) {
-      res.statusCode = 502;
-      res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.end(JSON.stringify({ error: 'All JioSaavn API hosts unavailable' }));
-      return;
-    }
-
-    const host = orderedHosts[hostIndex];
-    const fullUrl = `${host}${apiPath}`;
-    console.log(`[JSA Proxy] → ${fullUrl}`);
-
-    const mod = fullUrl.startsWith('https') ? https : http;
-    const req = mod.get(fullUrl, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 MoodBeats/1.4.0',
-      },
-      timeout: 8000,
-    }, (apiRes) => {
-      if (apiRes.statusCode < 200 || apiRes.statusCode >= 300) {
-        console.warn(`[JSA Proxy] ${host} returned HTTP ${apiRes.statusCode}, trying next host`);
-        apiRes.resume();
-        tryHost(hostIndex + 1);
-        return;
-      }
-
-      _jsaWorkingHost = host; // Remember which host worked
-      let data = '';
-      apiRes.on('data', chunk => { data += chunk; });
-      apiRes.on('end', () => {
-        try {
-          JSON.parse(data); // Validate it's JSON
-          res.statusCode = 200;
-          res.setHeader('Content-Type', 'application/json');
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('X-JSA-Host', host);
-          res.end(data);
-        } catch (e) {
-          console.warn(`[JSA Proxy] ${host} returned non-JSON, trying next host`);
-          tryHost(hostIndex + 1);
-        }
-      });
+function decryptMedia(enc) {
+  if (!enc) return [];
+  try {
+    const key = CryptoJS.enc.Utf8.parse('38346591');
+    const decrypted = CryptoJS.DES.decrypt(enc, key, {
+      mode: CryptoJS.mode.ECB,
+      padding: CryptoJS.pad.Pkcs7
     });
-
-    req.on('error', (err) => {
-      console.warn(`[JSA Proxy] ${host} error: ${err.message}, trying next host`);
-      tryHost(hostIndex + 1);
-    });
-
-    req.on('timeout', () => {
-      req.destroy();
-      console.warn(`[JSA Proxy] ${host} timed out, trying next host`);
-      tryHost(hostIndex + 1);
-    });
+    const raw = decrypted.toString(CryptoJS.enc.Utf8);
+    if (!raw) return [];
+    return [
+      { quality: '320kbps', url: raw.replace(/_96\.(mp4|mp3)|_160\.(mp4|mp3)/, '_320.mp4') },
+      { quality: '160kbps', url: raw.replace(/_96\.(mp4|mp3)|_320\.(mp4|mp3)/, '_160.mp4') },
+      { quality: '96kbps', url: raw }
+    ];
+  } catch (e) {
+    return [];
   }
+}
 
-  tryHost(0);
+function formatJioSong(s) {
+  if (!s) return null;
+  const rawImg = s.image || '';
+  const images = [
+    { quality: '50x50', url: rawImg ? rawImg.replace(/150x150|500x500/, '50x50') : 'icon.png' },
+    { quality: '150x150', url: rawImg ? rawImg.replace(/50x50|500x500/, '150x150') : 'icon.png' },
+    { quality: '500x500', url: rawImg ? rawImg.replace(/50x50|150x150/, '500x500') : 'icon.png' }
+  ];
+  return {
+    id: s.id,
+    name: s.song || s.title || 'Unknown Track',
+    title: s.song || s.title || 'Unknown Track',
+    album: { id: s.albumid || '', name: s.album || '' },
+    year: s.year || '',
+    duration: s.duration || '0',
+    label: s.label || '',
+    primaryArtists: s.primary_artists || s.singers || s.music || 'Unknown Artist',
+    artist: s.primary_artists || s.singers || s.music || 'Unknown Artist',
+    image: images,
+    downloadUrl: decryptMedia(s.encrypted_media_url)
+  };
+}
+
+function formatJioPlaylist(p) {
+  if (!p) return null;
+  const rawImg = p.image || '';
+  const images = [
+    { quality: '50x50', url: rawImg ? rawImg.replace(/150x150|500x500/, '50x50') : 'icon.png' },
+    { quality: '150x150', url: rawImg ? rawImg.replace(/50x50|500x500/, '150x150') : 'icon.png' },
+    { quality: '500x500', url: rawImg ? rawImg.replace(/50x50|150x150/, '500x500') : 'icon.png' }
+  ];
+  return {
+    id: p.listid || p.id,
+    name: p.listname || p.title || 'Playlist',
+    title: p.listname || p.title || 'Playlist',
+    image: images,
+    songCount: parseInt(p.count || p.songCount || 0),
+    songs: []
+  };
+}
+
+async function jioFetch(params) {
+  const qs = new URLSearchParams({
+    _format: 'json',
+    _marker: '0',
+    cc: 'in',
+    ...params
+  }).toString();
+  const url = `https://www.jiosaavn.com/api.php?${qs}`;
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Referer': 'https://www.jiosaavn.com/'
+    }
+  });
+  if (!res.ok) throw new Error(`JioSaavn error: ${res.status}`);
+  return await res.json();
 }
 
 const MIME_TYPES = {
@@ -87,20 +96,32 @@ const MIME_TYPES = {
   '.json': 'application/json',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
-  '.gif': 'image/gif',
+  '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
-  '.bin': 'application/octet-stream' // extremely important for face-api shard files!
+  '.bin': 'application/octet-stream',
+  '.mp3': 'audio/mpeg',
+  '.mp4': 'video/mp4'
 };
 
-// Store active sync states for phone-to-laptop camera pairing
 const syncSessions = {};
 
-function handleRequest(req, res) {
-  console.log(`${req.method} ${req.url}`);
+async function handleRequest(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
 
-  // API Route for getting server network IP (to generate QR codes)
-  if (req.url === '/api/ip') {
+  if (req.method === 'OPTIONS') {
+    res.statusCode = 204;
+    res.end();
+    return;
+  }
+
+  const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  const pathname = urlObj.pathname;
+
+  // 1. IP endpoint
+  if (pathname === '/api/ip') {
     const os = require('os');
     const networkInterfaces = os.networkInterfaces();
     let localIp = '127.0.0.1';
@@ -114,23 +135,17 @@ function handleRequest(req, res) {
     }
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
     res.end(JSON.stringify({ ip: localIp, port: PORT }));
     return;
   }
 
-  // API Route for phone-to-laptop real-time sync GET
-  if (req.method === 'GET' && req.url.startsWith('/api/sync')) {
-    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  // 2. Sync GET
+  if (req.method === 'GET' && pathname.startsWith('/api/sync')) {
     const session = urlObj.searchParams.get('session');
-    
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    
     if (session && syncSessions[session]) {
       res.end(JSON.stringify(syncSessions[session]));
-      // Clean up session state after it has been fetched/read by laptop
       delete syncSessions[session];
     } else {
       res.end(JSON.stringify({ active: false }));
@@ -138,185 +153,204 @@ function handleRequest(req, res) {
     return;
   }
 
-  // API Route for phone-to-laptop real-time sync POST
-  if (req.method === 'POST' && req.url.startsWith('/api/sync')) {
-    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  // 3. Sync POST
+  if (req.method === 'POST' && pathname.startsWith('/api/sync')) {
     const session = urlObj.searchParams.get('session');
-    
     let body = '';
-    req.on('data', chunk => {
-      body += chunk.toString();
-    });
+    req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
       try {
-        const data = JSON.parse(body);
+        const data = JSON.parse(body || '{}');
         if (session && data.mood) {
-          syncSessions[session] = {
-            active: true,
-            mood: data.mood,
-            confidence: data.confidence || 80
-          };
-          console.log(`Sync Session [${session}]: Mood updated to ${data.mood} (${data.confidence}%)`);
+          syncSessions[session] = { active: true, mood: data.mood, confidence: data.confidence || 80 };
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
-          res.setHeader('Access-Control-Allow-Origin', '*');
           res.end(JSON.stringify({ success: true }));
         } else {
           res.statusCode = 400;
-          res.end('Missing session parameter or mood data');
+          res.end(JSON.stringify({ error: 'Missing mood data' }));
         }
       } catch (e) {
         res.statusCode = 400;
-        res.end('Invalid JSON payload');
+        res.end(JSON.stringify({ error: 'Invalid JSON' }));
       }
     });
     return;
   }
 
-  // API Route for keyless YouTube video search
-  if (req.method === 'GET' && req.url.startsWith('/api/yt-search')) {
-    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  // 4. YouTube Search
+  if (pathname.startsWith('/api/yt-search')) {
     const query = urlObj.searchParams.get('q') || '';
-    
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    
     if (!query) {
       res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify([]));
       return;
     }
-    
-    const https = require('https');
+
     const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%253D%253D`;
-    
-    const options = {
+    https.get(ytUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'en-US,en;q=0.9'
       }
-    };
-    
-    https.get(ytUrl, options, (ytRes) => {
+    }, (ytRes) => {
       let html = '';
-      ytRes.on('data', chunk => {
-        html += chunk.toString();
-      });
+      ytRes.on('data', c => { html += c; });
       ytRes.on('end', () => {
         let results = [];
-        const seenIds = new Set();
-        
+        const seen = new Set();
         try {
-          const matchJson = html.match(/ytInitialData\s*=\s*({.+?});/);
-          if (matchJson) {
-            const json = JSON.parse(matchJson[1]);
-            let contents;
-            
-            if (json.contents && json.contents.twoColumnSearchResultsRenderer) {
-              contents = json.contents.twoColumnSearchResultsRenderer.primaryContents.sectionListRenderer.contents;
-            } else if (json.contents && json.contents.sectionListRenderer) {
-              contents = json.contents.sectionListRenderer.contents;
-            }
-            
+          const match = html.match(/ytInitialData\s*=\s*({.+?});/);
+          if (match) {
+            const json = JSON.parse(match[1]);
+            const contents = json.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || json.contents?.sectionListRenderer?.contents;
             if (contents) {
-              let items = [];
               for (const c of contents) {
-                if (c.itemSectionRenderer) {
-                  items = c.itemSectionRenderer.contents;
-                  break;
-                }
-              }
-              
-              for (const item of items) {
-                if (item.videoRenderer) {
-                  const v = item.videoRenderer;
-                  const title = v.title.runs[0].text;
-                  const videoId = v.videoId;
-                  const channel = v.ownerText.runs[0].text;
-                  
-                  results.push({
-                    title: title,
-                    artist: channel,
-                    videoId: videoId,
-                    genre: 'YouTube'
-                  });
-                  seenIds.add(videoId);
-                  if (results.length >= 8) break;
+                if (c.itemSectionRenderer?.contents) {
+                  for (const item of c.itemSectionRenderer.contents) {
+                    if (item.videoRenderer) {
+                      const v = item.videoRenderer;
+                      const videoId = v.videoId;
+                      const title = v.title?.runs?.[0]?.text;
+                      const channel = v.ownerText?.runs?.[0]?.text || 'YouTube';
+                      if (videoId && title && !seen.has(videoId)) {
+                        seen.add(videoId);
+                        results.push({ title, artist: channel, videoId, genre: 'YouTube' });
+                        if (results.length >= 8) break;
+                      }
+                    }
+                  }
                 }
               }
             }
           }
-        } catch (e) {
-          console.warn("ytInitialData parse failed, running regex fallback:", e);
-        }
-        
-        if (results.length === 0) {
-          const videoTitleRegex = /"title":{"runs":\[{"text":"([^"]+)"}\],"accessibility"/g;
-          const idRegex = /"videoId":"([a-zA-Z0-9_-]{11})"/g;
-          
-          const ids = [];
-          const titles = [];
-          
-          let idMatch;
-          while ((idMatch = idRegex.exec(html)) !== null) {
-            ids.push(idMatch[1]);
-          }
-          
-          let titleMatch;
-          while ((titleMatch = videoTitleRegex.exec(html)) !== null) {
-            titles.push(titleMatch[1]);
-          }
-          
-          for (let i = 0; i < Math.min(ids.length, titles.length, 8); i++) {
-            if (!seenIds.has(ids[i])) {
-              seenIds.add(ids[i]);
-              results.push({
-                title: titles[i],
-                artist: 'YouTube Upload',
-                videoId: ids[i],
-                genre: 'YouTube'
-              });
-            }
-          }
-        }
-        
+        } catch(e) {}
+
         res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify(results));
       });
-    }).on('error', (err) => {
-      console.error("YouTube search request failed:", err);
-      res.statusCode = 500;
+    }).on('error', () => {
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify([]));
     });
     return;
   }
 
-  // JioSaavn API Proxy — handles /api/search, /api/songs, /api/artists, /api/albums,
-  // /api/playlists, /api/lyrics, etc. by forwarding to external JioSaavn mirror hosts.
-  const LOCAL_API_PREFIXES = ['/api/ip', '/api/sync', '/api/yt-search'];
-  const isLocalApi = LOCAL_API_PREFIXES.some(prefix => req.url.startsWith(prefix));
-
-  if (req.method === 'GET' && req.url.startsWith('/api/') && !isLocalApi) {
-    // Strip query params from path check but pass them through to the proxy
-    const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-    const apiPath = urlObj.pathname + urlObj.search; // e.g. /api/search/songs?query=xyz
-    proxyJsaRequest(apiPath, res);
+  // 5. Search Songs (/api/search/songs)
+  if (pathname.startsWith('/api/search/songs')) {
+    try {
+      const q = urlObj.searchParams.get('query') || urlObj.searchParams.get('q') || '';
+      const limit = parseInt(urlObj.searchParams.get('limit') || '20');
+      const data = await jioFetch({ __call: 'search.getResults', q, p: 1, n: limit });
+      const results = (data.results || []).map(formatJioSong).filter(Boolean);
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ status: 'SUCCESS', data: { results, total: results.length } }));
+    } catch(e) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: e.message }));
+    }
     return;
   }
 
-  // Normalize URL path and resolve relative path
-  let filePath = req.url === '/' ? '/index.html' : req.url;
-  // Strip query parameters
-  filePath = filePath.split('?')[0];
-  
-  const fullPath = path.join(__dirname, filePath);
-
-  // Security check: ensure path is inside project directory
-  if (!fullPath.startsWith(__dirname)) {
-    res.statusCode = 403;
-    res.end('Forbidden');
+  // 6. Search Playlists (/api/search/playlists)
+  if (pathname.startsWith('/api/search/playlists')) {
+    try {
+      const q = urlObj.searchParams.get('query') || urlObj.searchParams.get('q') || '';
+      const limit = parseInt(urlObj.searchParams.get('limit') || '15');
+      const data = await jioFetch({ __call: 'search.getPlaylistResults', q, p: 1, n: limit });
+      const results = (data.results || []).map(formatJioPlaylist).filter(Boolean);
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ status: 'SUCCESS', data: { results, total: results.length } }));
+    } catch(e) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: e.message }));
+    }
     return;
   }
+
+  // 7. Playlist Details (/api/playlists)
+  if (pathname.startsWith('/api/playlists')) {
+    try {
+      const listid = urlObj.searchParams.get('id') || urlObj.searchParams.get('listid');
+      if (!listid) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Missing playlist id' }));
+        return;
+      }
+      const data = await jioFetch({ __call: 'playlist.getDetails', listid });
+      const songs = (data.songs || data.list || []).map(formatJioSong).filter(Boolean);
+      const rawImg = data.image || '';
+      const images = [
+        { quality: '50x50', url: rawImg ? rawImg.replace(/150x150|500x500/, '50x50') : 'icon.png' },
+        { quality: '150x150', url: rawImg ? rawImg.replace(/50x50|500x500/, '150x150') : 'icon.png' },
+        { quality: '500x500', url: rawImg ? rawImg.replace(/50x50|150x150/, '500x500') : 'icon.png' }
+      ];
+      const result = {
+        id: data.listid || data.id,
+        name: data.listname || data.title || 'Playlist',
+        title: data.listname || data.title || 'Playlist',
+        image: images,
+        songCount: songs.length,
+        songs: songs
+      };
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ status: 'SUCCESS', data: result }));
+    } catch(e) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // 8. Song Details (/api/songs)
+  if (pathname.startsWith('/api/songs')) {
+    try {
+      const pids = urlObj.searchParams.get('id') || urlObj.searchParams.get('pids');
+      if (!pids) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: 'Missing song id' }));
+        return;
+      }
+      const data = await jioFetch({ __call: 'song.getDetails', pids });
+      const rawSong = data[pids] || Object.values(data)[0];
+      const song = formatJioSong(rawSong);
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ status: 'SUCCESS', data: song ? [song] : [] }));
+    } catch(e) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // 9. All-in-one Search (/api/search)
+  if (pathname.startsWith('/api/search')) {
+    try {
+      const q = urlObj.searchParams.get('query') || urlObj.searchParams.get('q') || '';
+      const data = await jioFetch({ __call: 'search.getResults', q, p: 1, n: 20 });
+      const results = (data.results || []).map(formatJioSong).filter(Boolean);
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ status: 'SUCCESS', data: { results, songs: { results } } }));
+    } catch(e) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // Static File Serving
+  let filePath = pathname;
+  if (filePath === '/') filePath = '/index.html';
+  const safePath = path.normalize(filePath).replace(/^(\.\.[\/\\])+/, '');
+  const fullPath = path.join(__dirname, safePath);
 
   fs.stat(fullPath, (err, stats) => {
     if (err || !stats.isFile()) {
@@ -331,7 +365,7 @@ function handleRequest(req, res) {
 
     res.statusCode = 200;
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Enable CORS
+    res.setHeader('Access-Control-Allow-Origin', '*');
 
     const stream = fs.createReadStream(fullPath);
     stream.on('error', (streamErr) => {
@@ -347,21 +381,7 @@ const server = http.createServer(handleRequest);
 
 if (require.main === module) {
   server.listen(PORT, () => {
-    const os = require('os');
-    const networkInterfaces = os.networkInterfaces();
-    let localIp = 'localhost';
-    for (const name of Object.keys(networkInterfaces)) {
-      for (const net of networkInterfaces[name]) {
-        if (net.family === 'IPv4' && !net.internal) {
-          localIp = net.address;
-          break;
-        }
-      }
-    }
-    console.log(`MoodBeats local development server running!`);
-    console.log(`Local Access: http://localhost:${PORT}`);
-    console.log(`Network Access (for phone camera): http://${localIp}:${PORT}`);
-    console.log(`Press Ctrl+C to stop the server.`);
+    console.log(`MoodBeats server running on port ${PORT}`);
   });
 }
 
