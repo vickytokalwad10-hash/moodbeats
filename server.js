@@ -96,7 +96,7 @@ const MIME_TYPES = {
 // Store active sync states for phone-to-laptop camera pairing
 const syncSessions = {};
 
-const server = http.createServer((req, res) => {
+function handleRequest(req, res) {
   console.log(`${req.method} ${req.url}`);
 
   // API Route for getting server network IP (to generate QR codes)
@@ -341,22 +341,28 @@ const server = http.createServer((req, res) => {
     });
     stream.pipe(res);
   });
-});
+}
 
-server.listen(PORT, () => {
-  const os = require('os');
-  const networkInterfaces = os.networkInterfaces();
-  let localIp = 'localhost';
-  for (const name of Object.keys(networkInterfaces)) {
-    for (const net of networkInterfaces[name]) {
-      if (net.family === 'IPv4' && !net.internal) {
-        localIp = net.address;
-        break;
+const server = http.createServer(handleRequest);
+
+if (require.main === module) {
+  server.listen(PORT, () => {
+    const os = require('os');
+    const networkInterfaces = os.networkInterfaces();
+    let localIp = 'localhost';
+    for (const name of Object.keys(networkInterfaces)) {
+      for (const net of networkInterfaces[name]) {
+        if (net.family === 'IPv4' && !net.internal) {
+          localIp = net.address;
+          break;
+        }
       }
     }
-  }
-  console.log(`MoodBeats local development server running!`);
-  console.log(`Local Access: http://localhost:${PORT}`);
-  console.log(`Network Access (for phone camera): http://${localIp}:${PORT}`);
-  console.log(`Press Ctrl+C to stop the server.`);
-});
+    console.log(`MoodBeats local development server running!`);
+    console.log(`Local Access: http://localhost:${PORT}`);
+    console.log(`Network Access (for phone camera): http://${localIp}:${PORT}`);
+    console.log(`Press Ctrl+C to stop the server.`);
+  });
+}
+
+module.exports = handleRequest;
