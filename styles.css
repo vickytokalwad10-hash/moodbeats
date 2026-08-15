@@ -2819,4 +2819,146 @@ body.phone-controller-active .app-container    { padding-bottom: 0; max-width: 1
   background: rgba(255,255,255,0.1);
 }
 
+/* Phase 2: Made For You / Daily Mixes */
+.daily-mix-card {
+  min-width: 140px;
+  max-width: 140px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+.daily-mix-card:hover {
+  transform: translateY(-4px);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-md);
+}
+.daily-mix-cover {
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 8px;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  overflow: hidden;
+}
+.daily-mix-cover-badge {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+  opacity: 0.9;
+}
+.daily-mix-cover-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.1;
+}
+.daily-mix-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.daily-mix-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Soundscapes Grid */
+.soundscapes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+@media (min-width: 640px) {
+  .soundscapes-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.soundscape-card {
+  padding: 16px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), filter var(--transition-fast);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.soundscape-card:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+  filter: brightness(1.08);
+}
+.soundscape-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.soundscape-card-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.soundscape-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 4px;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.soundscape-card-badge {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+/* Playlist Reordering Controls */
+.track-reorder-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.track-reorder-btn:hover {
+  color: var(--text-color);
+  background: var(--surface-2);
+}
+
 

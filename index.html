@@ -115,8 +115,30 @@
           </div>
         </div>
 
+        <!-- Made For You (Daily Mixes) Section -->
+        <div class="made-for-you-section" style="margin-top: 24px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+            <div class="section-heading" style="margin:0;">Made For You</div>
+            <span style="font-size:11px; font-weight:700; color:var(--accent-color); text-transform:uppercase; letter-spacing:0.05em;">AI Curated</span>
+          </div>
+          <div class="h-scroll-row" id="home-daily-mixes-row">
+            <!-- Populated dynamically by JS -->
+          </div>
+        </div>
+
+        <!-- Mood & Activity Soundscapes Hub -->
+        <div class="soundscapes-section" style="margin-top: 24px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+            <div class="section-heading" style="margin:0;">Mood Soundscapes</div>
+            <span style="font-size:12px; color:var(--text-muted);">Vibe & Activity</span>
+          </div>
+          <div class="soundscapes-grid" id="home-soundscapes-grid">
+            <!-- Populated dynamically by JS -->
+          </div>
+        </div>
+
         <!-- Recently Played Section (populated by JS) -->
-        <div class="recently-played-section" id="home-recently-section" style="display:none;">
+        <div class="recently-played-section" id="home-recently-section" style="display:none; margin-top:24px;">
           <div class="section-heading">Recently Played</div>
           <div class="h-scroll-row" id="home-recently-row">
             <!-- Populated by JS -->
@@ -745,6 +767,9 @@
         </button>
         <span class="np-label">Now Playing</span>
         <div style="display:flex; align-items:center; gap:8px;">
+          <button class="np-btn-sm" id="np-radio-btn" title="Start Track Radio" style="padding:6px; color:var(--text-muted);">
+            <i data-lucide="radio"></i>
+          </button>
           <button class="np-btn-sm" id="np-eq-btn" title="Audio Equalizer" style="padding:6px; color:var(--text-muted);">
             <i data-lucide="sliders"></i>
           </button>
@@ -982,6 +1007,10 @@
         </div>
 
         <div class="song-options-actions" style="display:flex; flex-direction:column; gap:4px;">
+          <button class="option-action-item" id="opt-btn-start-radio" style="display:flex; align-items:center; gap:12px; width:100%; padding:12px; border-radius:10px; font-size:14px; font-weight:600; color:var(--text-color); transition:background 0.2s;">
+            <i data-lucide="radio" style="width:20px;height:20px;color:var(--accent-color);"></i>
+            <span>Start Track Radio</span>
+          </button>
           <button class="option-action-item" id="opt-btn-play-next" style="display:flex; align-items:center; gap:12px; width:100%; padding:12px; border-radius:10px; font-size:14px; font-weight:600; color:var(--text-color); transition:background 0.2s;">
             <i data-lucide="play-circle" style="width:20px;height:20px;color:var(--accent-color);"></i>
             <span>Play Next</span>

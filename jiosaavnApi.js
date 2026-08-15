@@ -324,7 +324,7 @@ async function jsaGetPlaylist(playlistId) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// 7. MOOD PLAYLIST BUILDER
+// 7. MOOD & ACTIVITY SOUNDSCAPE BUILDER
 // ─────────────────────────────────────────────────────────────────
 const MOOD_QUERIES = {
   'Happy':           'happy hindi songs',
@@ -336,10 +336,64 @@ const MOOD_QUERIES = {
   'Focused/Stressed':'focus study lo-fi hindi',
 };
 
+const SOUNDSCAPE_CONFIGS = {
+  'workout':  { title: 'Workout Power', icon: 'zap', query: 'high energy workout gym pump hindi songs', bg: 'linear-gradient(135deg, #ff007f, #ff4500)' },
+  'sleep':    { title: 'Midnight Chill', icon: 'moon', query: 'midnight calm ambient sleep lofi hindi', bg: 'linear-gradient(135deg, #1e1b4b, #312e81)' },
+  'rain':     { title: 'Rainy Day Vibes', icon: 'cloud-rain', query: 'monsoon rain acoustic romance hindi', bg: 'linear-gradient(135deg, #0284c7, #0f766e)' },
+  'focus':    { title: 'Deep Focus Lo-Fi', icon: 'coffee', query: 'lo-fi study focus instrumental chill beats', bg: 'linear-gradient(135deg, #7c3aed, #4f46e5)' },
+  'roadtrip': { title: 'Highway Roadtrip', icon: 'car', query: 'road trip travel driving bollywood songs', bg: 'linear-gradient(135deg, #f59e0b, #d97706)' },
+  'party':    { title: 'Party Anthems', icon: 'sparkles', query: 'club party dance hits non-stop hindi', bg: 'linear-gradient(135deg, #ec4899, #8b5cf6)' }
+};
+
 async function jsaGetMoodPlaylist(mood, limit = 20) {
   const query = MOOD_QUERIES[mood] || `${mood} hindi songs`;
   const songs = await jsaSearchSongs(query, limit);
   return songs.filter(s => s.downloadUrl);
+}
+
+async function jsaGetSoundscapePlaylist(key, limit = 25) {
+  const config = SOUNDSCAPE_CONFIGS[key] || SOUNDSCAPE_CONFIGS['focus'];
+  const songs = await jsaSearchSongs(config.query, limit);
+  return {
+    key,
+    title: config.title,
+    icon: config.icon,
+    bg: config.bg,
+    songs: songs.filter(s => s.downloadUrl)
+  };
+}
+
+async function jsaGetTrackRadio(song, limit = 25) {
+  if (!song) return [];
+  const primaryArtist = song.artist ? song.artist.split(',')[0].trim() : '';
+  const searchQueries = [
+    primaryArtist ? `${primaryArtist} songs` : null,
+    song.album ? `${song.album} songs` : null,
+    song.genre ? `${song.genre} songs` : 'trending hindi songs'
+  ].filter(Boolean);
+
+  let pool = [];
+  for (const q of searchQueries) {
+    try {
+      const res = await jsaSearchSongs(q, 15);
+      pool = [...pool, ...res];
+      if (pool.length >= limit) break;
+    } catch(e) {}
+  }
+
+  // Deduplicate and filter out current song
+  const seen = new Set([song.id]);
+  const radioSongs = [song];
+  
+  for (const s of pool) {
+    if (s && s.id && !seen.has(s.id) && s.downloadUrl) {
+      seen.add(s.id);
+      radioSongs.push(s);
+      if (radioSongs.length >= limit) break;
+    }
+  }
+
+  return radioSongs;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -404,22 +458,25 @@ function jsaNextFallbackUrl(song, currentUrl) {
 // 10. EXPORT
 // ─────────────────────────────────────────────────────────────────
 window.JSA = {
-  fetch:                jsaFetch,
-  searchSongs:          jsaSearchSongs,
-  searchArtists:        jsaSearchArtists,
-  searchAlbums:         jsaSearchAlbums,
-  searchPlaylists:      jsaSearchPlaylists,
-  searchAll:            jsaSearchAll,
-  getArtist:            jsaGetArtist,
-  getAlbum:             jsaGetAlbum,
-  getPlaylist:          jsaGetPlaylist,
-  getMoodPlaylist:      jsaGetMoodPlaylist,
-  getFeaturedPlaylists: jsaGetFeaturedPlaylists,
-  bestStreamUrl:        jsaBestStreamUrl,
-  nextFallbackUrl:      jsaNextFallbackUrl,
-  decodeEntities:       jsaDecodeEntities,
-  escapeHtml:           jsaEscapeHtml,
-  get workingHost()     { return _jsaWorkingHost; },
+  fetch:                  jsaFetch,
+  searchSongs:            jsaSearchSongs,
+  searchArtists:          jsaSearchArtists,
+  searchAlbums:           jsaSearchAlbums,
+  searchPlaylists:        jsaSearchPlaylists,
+  searchAll:              jsaSearchAll,
+  getArtist:              jsaGetArtist,
+  getAlbum:               jsaGetAlbum,
+  getPlaylist:            jsaGetPlaylist,
+  getMoodPlaylist:        jsaGetMoodPlaylist,
+  getSoundscapePlaylist:  jsaGetSoundscapePlaylist,
+  getTrackRadio:          jsaGetTrackRadio,
+  soundscapeConfigs:      SOUNDSCAPE_CONFIGS,
+  getFeaturedPlaylists:   jsaGetFeaturedPlaylists,
+  bestStreamUrl:          jsaBestStreamUrl,
+  nextFallbackUrl:        jsaNextFallbackUrl,
+  decodeEntities:         jsaDecodeEntities,
+  escapeHtml:             jsaEscapeHtml,
+  get workingHost()       { return _jsaWorkingHost; },
 };
 
 // Global escapeHtml fallback for direct usage

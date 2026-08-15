@@ -700,6 +700,141 @@ function toggleRepeat() {
   }
 }
 
+// ==========================================
+// 2f. Phase 2: Track Radio, Daily Mixes & Soundscapes Hub
+// ==========================================
+async function startTrackRadio(song) {
+  const target = song || state.saavnCurrentSong || state.currentPlayerSong;
+  if (!target) {
+    showToast('Please select a song first');
+    return;
+  }
+  showToast(`📻 Tuning into ${escapeHtml(target.title)} Radio...`);
+  try {
+    const radioTracks = await (window.JSA?.getTrackRadio ? window.JSA.getTrackRadio(target, 25) : [target]);
+    if (radioTracks && radioTracks.length > 0) {
+      state.playQueue = radioTracks;
+      state.queueIndex = 0;
+      saavnPlaySong(radioTracks[0], radioTracks, 0);
+      showToast(`📻 Playing ${escapeHtml(target.artist || target.title)} Radio (${radioTracks.length} tracks)`);
+      if (document.getElementById('queue-modal')?.style.display === 'flex') {
+        renderQueueUI();
+      }
+    } else {
+      saavnPlaySong(target);
+    }
+  } catch (err) {
+    console.error('Radio generation failed:', err);
+    saavnPlaySong(target);
+  }
+}
+
+const DAILY_MIX_DEFINITIONS = [
+  {
+    id: 'dm_1',
+    badge: 'Daily Mix 1',
+    title: 'High Energy & Beats',
+    desc: 'Upbeat Hindi & Punjabi gym & workout hits',
+    query: 'workout gym party energetic hindi songs',
+    gradient: 'linear-gradient(135deg, #f43f5e, #fb923c)'
+  },
+  {
+    id: 'dm_2',
+    badge: 'Daily Mix 2',
+    title: 'Acoustic Romance',
+    desc: 'Melodic Bollywood love ballads & soft acoustic',
+    query: 'romantic acoustic hindi melodic songs',
+    gradient: 'linear-gradient(135deg, #8b5cf6, #ec4899)'
+  },
+  {
+    id: 'dm_3',
+    badge: 'Daily Mix 3',
+    title: 'Chill Lo-Fi & Focus',
+    desc: 'Mellow study beats, ambient lo-fi & peaceful rhythms',
+    query: 'chill lofi peaceful calm hindi beats',
+    gradient: 'linear-gradient(135deg, #06b6d4, #3b82f6)'
+  },
+  {
+    id: 'dm_radar',
+    badge: 'Release Radar',
+    title: 'Fresh Mood Radar',
+    desc: 'Trending new releases mapped to your emotion',
+    query: 'latest trending new hindi bollywood songs',
+    gradient: 'linear-gradient(135deg, #10b981, #059669)'
+  }
+];
+
+function initDailyMixes() {
+  const container = document.getElementById('home-daily-mixes-row');
+  if (!container) return;
+  container.innerHTML = '';
+
+  DAILY_MIX_DEFINITIONS.forEach(dm => {
+    const card = document.createElement('div');
+    card.className = 'daily-mix-card';
+    card.innerHTML = `
+      <div class="daily-mix-cover" style="background:${dm.gradient};">
+        <span class="daily-mix-cover-badge">${dm.badge}</span>
+        <div class="daily-mix-cover-title">${escapeHtml(dm.title.split('&')[0])}</div>
+      </div>
+      <div class="daily-mix-title">${escapeHtml(dm.title)}</div>
+      <div class="daily-mix-subtitle">${escapeHtml(dm.desc)}</div>
+    `;
+    card.onclick = async () => {
+      showToast(`Loading ${dm.title}...`);
+      try {
+        const songs = await window.JSA.searchSongs(dm.query, 20);
+        if (songs && songs.length > 0) {
+          saavnPlaySong(songs[0], songs, 0);
+          showToast(`Playing ${dm.title}`);
+        } else {
+          showToast('Could not load songs for this mix.');
+        }
+      } catch (e) {
+        showToast('Error loading Daily Mix');
+      }
+    };
+    container.appendChild(card);
+  });
+}
+
+function initSoundscapesHub() {
+  const container = document.getElementById('home-soundscapes-grid');
+  if (!container || !window.JSA?.soundscapeConfigs) return;
+  container.innerHTML = '';
+
+  const configs = window.JSA.soundscapeConfigs;
+  Object.keys(configs).forEach(key => {
+    const item = configs[key];
+    const card = document.createElement('div');
+    card.className = 'soundscape-card';
+    card.style.background = item.bg;
+    card.innerHTML = `
+      <div class="soundscape-card-top">
+        <span class="soundscape-card-badge">Vibe Hub</span>
+        <div class="soundscape-card-icon">
+          <i data-lucide="${item.icon}"></i>
+        </div>
+      </div>
+      <div class="soundscape-card-title">${escapeHtml(item.title)}</div>
+    `;
+    card.onclick = async () => {
+      showToast(`Loading ${item.title} soundscape...`);
+      try {
+        const soundscape = await window.JSA.getSoundscapePlaylist(key, 25);
+        if (soundscape && soundscape.songs && soundscape.songs.length > 0) {
+          saavnPlaySong(soundscape.songs[0], soundscape.songs, 0);
+          showToast(`Playing ${item.title} soundscape`);
+        }
+      } catch (err) {
+        showToast(`Failed to load soundscape`);
+      }
+    };
+    container.appendChild(card);
+  });
+  lucide.createIcons();
+}
+
 // Play a song using the <audio> element with automatic quality fallback & queue sync
 function saavnPlaySong(song, queue = null, index = null) {
   const url = (window.JSA ? window.JSA.bestStreamUrl(song) : null) || song?.downloadUrl || song?.streamUrl;
@@ -2562,6 +2697,17 @@ function removeSongFromPlaylist(playlistId, trackIndex) {
   renderLibraryView();
 }
 
+function movePlaylistTrack(playlistId, fromIdx, toIdx) {
+  const pl = state.userPlaylists.find(p => p.id === playlistId);
+  if (!pl || !pl.tracks) return;
+  if (fromIdx < 0 || fromIdx >= pl.tracks.length || toIdx < 0 || toIdx >= pl.tracks.length) return;
+
+  const [moved] = pl.tracks.splice(fromIdx, 1);
+  pl.tracks.splice(toIdx, 0, moved);
+  saveUserPlaylists();
+  renderPlaylistDetailView(pl);
+}
+
 function deleteUserPlaylist(playlistId) {
   const pl = state.userPlaylists.find(p => p.id === playlistId);
   if (!pl) return;
@@ -3097,15 +3243,32 @@ function renderPlaylistDetailView(pl) {
   }
 
   pl.tracks.forEach((song, idx) => {
+    const isLiked = isSongLiked(song.id || song);
     const row = document.createElement('div');
     row.className = 'track-row';
     row.innerHTML = `
+      ${!pl.isJSaavn ? `
+      <div style="display:flex; flex-direction:column; gap:2px; margin-right:4px;">
+        <button class="track-reorder-btn btn-mv-up" title="Move Up" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>
+          <i data-lucide="chevron-up" style="width:14px;height:14px;"></i>
+        </button>
+        <button class="track-reorder-btn btn-mv-down" title="Move Down" ${idx === pl.tracks.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>
+          <i data-lucide="chevron-down" style="width:14px;height:14px;"></i>
+        </button>
+      </div>` : ''}
       <img class="track-art" src="${song.image || 'icon.png'}" onerror="this.src='icon.png'">
       <div class="track-info">
         <div class="track-title">${escapeHtml(song.title)}</div>
         <div class="track-artist">${escapeHtml(song.artist)}</div>
       </div>
+      <div class="track-duration">${formatTime(song.duration)}</div>
       <div class="track-actions">
+        <button class="btn-track-action btn-card-like ${isLiked ? 'liked' : ''}" title="${isLiked ? 'Unlike' : 'Like'}">
+          <i data-lucide="heart" style="${isLiked ? 'fill:#ec4899;color:#ec4899;' : ''}"></i>
+        </button>
+        <button class="btn-track-action btn-card-more" title="More options">
+          <i data-lucide="more-vertical"></i>
+        </button>
         ${!pl.isJSaavn ? `
         <button class="btn-track-action btn-rm-tr" title="Remove Track" style="color:#ef4444;">
           <i data-lucide="trash-2"></i>
@@ -3115,7 +3278,22 @@ function renderPlaylistDetailView(pl) {
         </button>
       </div>
     `;
+
     if (!pl.isJSaavn) {
+      const upBtn = row.querySelector('.btn-mv-up');
+      const downBtn = row.querySelector('.btn-mv-down');
+      if (upBtn && idx > 0) {
+        upBtn.onclick = (e) => {
+          e.stopPropagation();
+          movePlaylistTrack(pl.id, idx, idx - 1);
+        };
+      }
+      if (downBtn && idx < pl.tracks.length - 1) {
+        downBtn.onclick = (e) => {
+          e.stopPropagation();
+          movePlaylistTrack(pl.id, idx, idx + 1);
+        };
+      }
       const rmBtn = row.querySelector('.btn-rm-tr');
       if (rmBtn) {
         rmBtn.onclick = (e) => {
@@ -3124,11 +3302,31 @@ function renderPlaylistDetailView(pl) {
         };
       }
     }
+
+    row.querySelector('.btn-card-like').onclick = (e) => {
+      e.stopPropagation();
+      toggleLikeSong(song);
+      const icon = row.querySelector('.btn-card-like i');
+      const nowLiked = isSongLiked(song.id || song);
+      if (nowLiked) {
+        row.querySelector('.btn-card-like').classList.add('liked');
+        if (icon) { icon.style.fill = '#ec4899'; icon.style.color = '#ec4899'; }
+      } else {
+        row.querySelector('.btn-card-like').classList.remove('liked');
+        if (icon) { icon.style.fill = ''; icon.style.color = ''; }
+      }
+    };
+
+    row.querySelector('.btn-card-more').onclick = (e) => {
+      e.stopPropagation();
+      openSongOptionsModal(song);
+    };
+
     row.querySelector('.btn-play-tr').onclick = (e) => {
       e.stopPropagation();
-      playSong(song, pl.tracks, idx);
+      saavnPlaySong(song, pl.tracks, idx);
     };
-    row.onclick = () => playSong(song, pl.tracks, idx);
+    row.onclick = () => saavnPlaySong(song, pl.tracks, idx);
     tracksContainer.appendChild(row);
   });
 
@@ -3798,8 +3996,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCloseCreateModal = document.getElementById('btn-close-create-modal');
   if (btnCloseCreateModal) btnCloseCreateModal.addEventListener('click', closeCreatePlaylistModal);
 
-  // Initial Library Render
+  // Initial Library, Daily Mixes & Soundscapes Hub Render
   renderLibraryView();
+  initDailyMixes();
+  initSoundscapesHub();
 
   // Camera device switcher listener
   const deviceSelect = document.getElementById('camera-device-select');
@@ -4040,6 +4240,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // Song Options Modal Actions
   const btnCloseOptionsModal = document.getElementById('btn-close-options-modal');
   if (btnCloseOptionsModal) btnCloseOptionsModal.addEventListener('click', closeSongOptionsModal);
+
+  // Phase 2: Track Radio Buttons
+  const btnNpRadio = document.getElementById('np-radio-btn');
+  if (btnNpRadio) {
+    btnNpRadio.addEventListener('click', () => {
+      const current = state.saavnCurrentSong || state.currentPlayerSong;
+      if (current) startTrackRadio(current);
+    });
+  }
+
+  const optBtnStartRadio = document.getElementById('opt-btn-start-radio');
+  if (optBtnStartRadio) {
+    optBtnStartRadio.addEventListener('click', () => {
+      const target = state.songOptionsTarget;
+      closeSongOptionsModal();
+      if (target) startTrackRadio(target);
+    });
+  }
 
   const optBtnPlayNext = document.getElementById('opt-btn-play-next');
   if (optBtnPlayNext) {
