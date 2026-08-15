@@ -457,17 +457,37 @@ async function jsaGetFeaturedPlaylists() {
 
 function jsaBestStreamUrl(song) {
   if (!song) return null;
-  const userQuality = localStorage.getItem('moodbeats_audio_quality') || 'auto';
-  
-  if (userQuality !== 'auto' && song._raw?.downloadUrl && Array.isArray(song._raw.downloadUrl)) {
-    const targetKbps = userQuality.replace('kbps', '');
-    const matched = song._raw.downloadUrl.find(u => String(u.quality).includes(targetKbps));
-    if (matched?.url) return matched.url;
+  if (typeof song === 'string') return song;
+
+  // 1. Array in downloadUrl
+  if (Array.isArray(song.downloadUrl) && song.downloadUrl.length > 0) {
+    const sorted = [...song.downloadUrl].sort((a, b) => (parseInt(b.quality) || 0) - (parseInt(a.quality) || 0));
+    if (sorted[0]?.url) return sorted[0].url;
   }
 
-  if (song.downloadUrl) return song.downloadUrl;
-  if (song.streamFallbacks?.length) return song.streamFallbacks[0];
-  if (song.streamUrl) return song.streamUrl;
+  // 2. Direct string in downloadUrl
+  if (typeof song.downloadUrl === 'string' && song.downloadUrl.startsWith('http')) {
+    return song.downloadUrl;
+  }
+
+  // 3. Direct string in streamUrl
+  if (typeof song.streamUrl === 'string' && song.streamUrl.startsWith('http')) {
+    return song.streamUrl;
+  }
+
+  // 4. Stream fallbacks
+  if (Array.isArray(song.streamFallbacks) && song.streamFallbacks.length > 0) {
+    const first = song.streamFallbacks[0];
+    if (typeof first === 'string' && first.startsWith('http')) return first;
+    if (first?.url) return first.url;
+  }
+
+  // 5. Raw payload
+  if (Array.isArray(song._raw?.downloadUrl) && song._raw.downloadUrl.length > 0) {
+    const sorted = [...song._raw.downloadUrl].sort((a, b) => (parseInt(b.quality) || 0) - (parseInt(a.quality) || 0));
+    if (sorted[0]?.url) return sorted[0].url;
+  }
+
   return null;
 }
 

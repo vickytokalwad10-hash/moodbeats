@@ -1025,13 +1025,25 @@ function saavnPlaySong(song, queue = null, index = null) {
   syncNowPlayingPanel(song, state.queueIndex);
   renderQueueUI();
 
-  // Show mini player bar
+  // Update Player Bar UI immediately
   const playerBar = document.getElementById('player-bar');
   if (playerBar) {
     playerBar.style.display = 'flex';
+    playerBar.style.visibility = 'visible';
+    playerBar.style.opacity = '1';
     void playerBar.offsetHeight;
     playerBar.classList.add('active');
     document.body.classList.add('player-active');
+  }
+
+  const titleEl = document.getElementById('player-title');
+  const artistEl = document.getElementById('player-artist');
+  const artEl = document.getElementById('player-art');
+  if (titleEl) titleEl.innerText = song.title || song.name || 'Song Title';
+  if (artistEl) artistEl.innerText = song.artist || song.primaryArtists || 'Artist';
+  if (artEl && song.image) {
+    artEl.style.background = 'none';
+    artEl.innerHTML = `<img src="${song.image}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
   }
 
   // Notify Android Foreground Service Bridge immediately
