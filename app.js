@@ -302,7 +302,37 @@ let _invidiousWorkingIdx = 0;
 
 async function searchYouTubeGlobally(query, limit = 8) {
   if (!query || !query.trim()) return [];
-  const q = encodeURIComponent(query.trim() + ' audio');
+  const q = query.trim();
+
+  // Try 1: Render Cloud Server / Local Server proxy
+  try {
+    const srv = getServerUrl();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${srv}/api/yt-search?q=${encodeURIComponent(q)}`, {
+      signal: controller.signal,
+      headers: { 'Accept': 'application/json' }
+    });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data.slice(0, limit).map(v => ({
+          videoId: v.videoId,
+          title: v.title || 'Unknown',
+          artist: v.artist || 'YouTube',
+          duration: v.duration || 0,
+          image: `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`,
+          genre: 'YouTube',
+        }));
+      }
+    }
+  } catch(e) {
+    console.warn('[YT Search] Server proxy failed, trying Invidious fallbacks:', e.message);
+  }
+
+  // Try 2: Invidious Public Instances Fallback
+  const qEncoded = encodeURIComponent(q + ' audio');
   const orderedInstances = [
     INVIDIOUS_INSTANCES[_invidiousWorkingIdx],
     ...INVIDIOUS_INSTANCES.filter((_, i) => i !== _invidiousWorkingIdx),
@@ -310,7 +340,7 @@ async function searchYouTubeGlobally(query, limit = 8) {
 
   for (let i = 0; i < orderedInstances.length; i++) {
     const base = orderedInstances[i];
-    const url = `${base}/api/v1/search?q=${q}&type=video&fields=videoId,title,author,lengthSeconds&page=1`;
+    const url = `${base}/api/v1/search?q=${qEncoded}&type=video&fields=videoId,title,author,lengthSeconds&page=1`;
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 6000);
@@ -335,8 +365,7 @@ async function searchYouTubeGlobally(query, limit = 8) {
       console.warn(`[YT Search] ${base} failed: ${e.message}`);
     }
   }
-  // All Invidious instances failed — return empty gracefully
-  console.warn('[YT Search] All Invidious instances unavailable. YouTube results skipped.');
+  console.warn('[YT Search] All search providers unavailable. YouTube results skipped.');
   return [];
 }
 
@@ -3815,8 +3844,11 @@ function toggleTheme(forcedState = null) {
 function getServerUrl() {
   const saved = localStorage.getItem('moodbeats_server_url');
   if (saved) return saved.replace(/\/$/, '');
-  // Fallback to current window origin (which points to localhost inside WebView)
-  return window.location.origin.replace(/\/$/, '');
+  const origin = window.location.origin;
+  if (origin && !origin.includes('localhost') && !origin.includes('127.0.0.1') && !origin.includes('capacitor://') && origin.startsWith('http')) {
+    return origin.replace(/\/$/, '');
+  }
+  return 'https://moodbeats-gtai.onrender.com';
 }
 
 // ==========================================

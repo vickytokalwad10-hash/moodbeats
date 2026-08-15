@@ -13,6 +13,7 @@
 // 1. HOST REGISTRY
 // ─────────────────────────────────────────────────────────────────
 const JSA_HOSTS = [
+  'https://moodbeats-gtai.onrender.com',
   'https://saavn.sumit.co',
   'https://jiosaavn-api-privatecvc2.vercel.app',
   'https://saavn.me',
