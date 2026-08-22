@@ -1041,31 +1041,54 @@ function saavnPlaySong(song, queue = null, index = null) {
       saavnNext(true);
     });
 
-    state.saavnAudio.addEventListener('error', () => {
+    state.saavnAudio.addEventListener('error', (e) => {
       const err = state.saavnAudio.error;
-      console.error('[MoodBeats Audio Error] ❌ Media error occurred:', err ? err.code : 'Unknown');
+      const code = err ? err.code : 'UNKNOWN';
+      const msg = err ? (err.message || '') : '';
+      console.error(`[MoodBeats Audio Error] ❌ Media error (Code ${code}): ${msg}`, err);
       const currentUrl = state.saavnAudio.src;
 
-      // Tier 1: Next CDN quality fallback
+      // Tier 1: If track has not been re-resolved fresh from API, fetch fresh stream URL and retry once
+      if (state.saavnCurrentSong && !state.saavnCurrentSong._retryAttempted && window.JSA?.getStream) {
+        state.saavnCurrentSong._retryAttempted = true;
+        console.log('[MoodBeats Audio] 🔄 Re-fetching fresh stream URL from JioSaavn...');
+        showToast('🔄 Refreshing audio stream...');
+        const trackId = state.saavnCurrentSong.id;
+        if (trackId) {
+          window.JSA.getStream(trackId).then(streamData => {
+            if (streamData && streamData.streamUrl) {
+              state.saavnAudio.src = streamData.streamUrl;
+              state.saavnAudio.play().catch(() => {});
+              return;
+            }
+            throw new Error('No stream URL in refresh');
+          }).catch(() => {
+            // Tier 2: Proxied stream fallback
+            if (currentUrl && !currentUrl.includes('/api/stream/audio')) {
+              const proxiedUrl = window.JSA.getProxiedAudioUrl(currentUrl);
+              state.saavnAudio.src = proxiedUrl;
+              state.saavnAudio.play().catch(() => {});
+              return;
+            }
+            showToast('⚠️ This song is unavailable, trying next track...');
+            saavnNext(true);
+          });
+          return;
+        }
+      }
+
+      // Tier 2: Next quality fallback
       const fallbackUrl = (window.JSA && state.saavnCurrentSong) ? window.JSA.nextFallbackUrl(state.saavnCurrentSong, currentUrl) : null;
       if (fallbackUrl) {
-        showToast('🔄 Switching to fallback stream quality...');
+        console.log('[MoodBeats Audio] 🔄 Switching to fallback stream quality...');
         state.saavnAudio.src = fallbackUrl;
         state.saavnAudio.play().catch(() => {});
         return;
       }
 
-      // Tier 2: Backend Audio Proxy Stream
-      if (window.JSA && currentUrl && !currentUrl.includes('/api/stream/audio')) {
-        const proxiedUrl = window.JSA.getProxiedAudioUrl(currentUrl);
-        showToast('🔄 Routing through high-speed audio proxy...');
-        state.saavnAudio.src = proxiedUrl;
-        state.saavnAudio.play().catch(() => {});
-        return;
-      }
-
-      // Tier 3: Auto-skip
-      showToast('⚠️ Could not play track. Skipping to next...');
+      // Tier 3: Auto-skip with clear user message
+      console.warn('[MoodBeats Audio] ⏭️ Track stream failed permanently. Skipping to next track in queue...');
+      showToast('⚠️ This song is unavailable, trying next track...');
       saavnNext(true);
     });
 
@@ -1084,23 +1107,17 @@ function saavnPlaySong(song, queue = null, index = null) {
     if (requestId !== currentStreamRequestId) return; // Stale request discarded
     console.log('[MoodBeats Audio Pipeline] 🚀 Executing stream playback:', streamUrl);
 
-    try {
-      initEqualizer();
-      if (state.eqContext && state.eqContext.state === 'suspended') {
-        state.eqContext.resume().catch(() => {});
-      }
-    } catch(e) {}
-
     state.saavnAudio.src = streamUrl;
     state.saavnIsPlaying = true;
     state.isPlaying = true;
 
+    // Use direct HTML5 Audio playback to ensure full volume without Web Audio CORS muting
     state.saavnAudio.play().then(() => {
       updatePlayerLoadingState(false);
       notifyAndroidBridge('metadata', { title: song.title || song.name, artist: song.artist || song.primaryArtists });
       notifyAndroidBridge('playback', { isPlaying: true, position: 0, duration: song.duration || 0 });
     }).catch(playErr => {
-      console.warn('[MoodBeats Audio] Play promise note:', playErr.message);
+      console.warn('[MoodBeats Audio] Play promise interrupted:', playErr.message);
       if (window.JSA && streamUrl && !streamUrl.includes('/api/stream/audio')) {
         const proxied = window.JSA.getProxiedAudioUrl(streamUrl);
         state.saavnAudio.src = proxied;
@@ -1129,6 +1146,33 @@ function saavnPlaySong(song, queue = null, index = null) {
       updatePlayerLoadingState(false);
       console.error('[MoodBeats Audio] Stream error:', err);
       showToast('⚠️ Failed to load stream URL');
+    });
+  } else if (!url && !song?.id && (song?.title || song?.name) && window.JSA?.searchSongs) {
+    // Dynamic Title + Artist stream resolution fallback
+    updatePlayerLoadingState(true);
+    const searchTitle = song.title || song.name;
+    const searchArtist = song.artist || song.primaryArtists || '';
+    const query = `${searchTitle} ${searchArtist}`.trim();
+    console.log(`[MoodBeats Audio] 🔍 Resolving stream for track without ID: "${query}"...`);
+
+    window.JSA.searchSongs(query, 1).then(results => {
+      if (requestId !== currentStreamRequestId) return;
+      if (results && results.length > 0 && results[0].downloadUrl) {
+        const resolved = results[0];
+        song.id = resolved.id;
+        song.downloadUrl = resolved.downloadUrl;
+        song.image = resolved.image || song.image;
+        executePlay(window.JSA.bestStreamUrl(resolved));
+      } else {
+        updatePlayerLoadingState(false);
+        showToast('⚠️ Track unavailable. Skipping to next...');
+        saavnNext(true);
+      }
+    }).catch(() => {
+      if (requestId !== currentStreamRequestId) return;
+      updatePlayerLoadingState(false);
+      showToast('⚠️ Track unavailable. Skipping to next...');
+      saavnNext(true);
     });
   } else if (url) {
     executePlay(url);
@@ -1821,9 +1865,9 @@ function navigateTo(rawViewId, pushToHistory = true) {
 // ==========================================
 // 6. Webcam & face-api.js Integration
 // ==========================================
-// Use absolute URL so models resolve correctly under Capacitor's https://localhost scheme
-// and under a regular browser dev server equally.
-const MODEL_URL_LOCAL = `${window.location.origin}/models`;
+// Use relative './models' so models resolve correctly under Capacitor localhost,
+// Cordova webviews, PWA hosting, and dev servers equally.
+const MODEL_URL_LOCAL = './models';
 const MODEL_URL_CDN = 'https://justadudewhohacks.github.io/face-api.js/models/';
 
 // ─────────────────────────────────────────────────────────────
@@ -1864,8 +1908,7 @@ async function loadFaceModels() {
     await waitForFaceApi(12000);
   } catch (waitErr) {
     console.error('[MoodBeats] face-api.js did not load:', waitErr);
-    if (progressText) progressText.innerText = 'Critical: Face library failed to load. Check internet.';
-    return false;
+    if (progressText) progressText.innerText = 'Face AI library unavailable. Retrying with cloud fallback...';
   }
 
   const sourceSelect   = document.getElementById('settings-model-source');
@@ -1895,20 +1938,18 @@ async function loadFaceModels() {
     setTimeout(() => { if (statusBox) statusBox.style.display = 'none'; }, 1200);
     return true;
   } catch (err) {
-    console.error('[MoodBeats] Model load failed:', err);
-    if (selectedSource === 'local') {
-      try {
-        if (progressText) progressText.innerText = 'Local models failed — trying CDN fallback...';
-        await tryLoad(MODEL_URL_CDN);
-        state.faceModelsLoaded = true;
-        if (progressText) progressText.innerText = 'CDN models loaded!';
-        setTimeout(() => { if (statusBox) statusBox.style.display = 'none'; }, 1200);
-        return true;
-      } catch (cdnErr) {
-        console.error('[MoodBeats] CDN models also failed:', cdnErr);
-      }
+    console.error('[MoodBeats] Local model load failed, attempting CDN fallback:', err);
+    try {
+      if (progressText) progressText.innerText = 'Local models failed — trying CDN fallback...';
+      await tryLoad(MODEL_URL_CDN);
+      state.faceModelsLoaded = true;
+      if (progressText) progressText.innerText = 'CDN models loaded!';
+      setTimeout(() => { if (statusBox) statusBox.style.display = 'none'; }, 1200);
+      return true;
+    } catch (cdnErr) {
+      console.error('[MoodBeats] CDN models also failed:', cdnErr);
     }
-    if (progressText) progressText.innerText = 'Critical: Face detection models failed to load.';
+    if (progressText) progressText.innerText = 'Face detection models unavailable. Simulation mode enabled.';
     return false;
   }
 }
@@ -2153,18 +2194,37 @@ async function triggerWebcamDetection() {
     return;
   }
 
+  // Wait for video frame to be ready before passing to TensorFlow/face-api
+  if (video.videoWidth === 0 || video.readyState < 2) {
+    console.log('[MoodBeats Webcam] ⏳ Waiting for video frame dimensions...');
+    await new Promise(resolve => {
+      if (video.videoWidth > 0 && video.readyState >= 2) return resolve();
+      const onReady = () => {
+        video.removeEventListener('loadeddata', onReady);
+        video.removeEventListener('canplay', onReady);
+        resolve();
+      };
+      video.addEventListener('loadeddata', onReady);
+      video.addEventListener('canplay', onReady);
+      setTimeout(resolve, 1200);
+    });
+  }
+
   const overlayCtx  = overlayCanvas.getContext('2d');
   let bestDetection = null;
+  let framesAnalyzed = 0;
   const scanStartTime = Date.now();
-  const scanDuration  = 2500; // 2.5 second scan
+  const scanDuration  = 2800; // 2.8 second scan
 
-  // ── Critical: match canvas to the video's *rendered* size ──
+  // Match canvas to the video's actual stream size
   const vw = video.videoWidth  || video.offsetWidth  || 640;
   const vh = video.videoHeight || video.offsetHeight || 480;
   overlayCanvas.width  = vw;
   overlayCanvas.height = vh;
   const displaySize = { width: vw, height: vh };
   faceapi.matchDimensions(overlayCanvas, displaySize);
+
+  console.log(`[MoodBeats Webcam] 📷 Starting face detection on stream (${vw}x${vh})...`);
 
   const detectLoop = async () => {
     if (Date.now() - scanStartTime > scanDuration || !state.webcamStream) {
@@ -2197,30 +2257,39 @@ async function triggerWebcamDetection() {
           default:         mappedMood = 'Relaxed';
         }
 
+        console.log(`[MoodBeats Webcam] ✅ Mood detected: ${mappedMood} (${confidenceVal}% confidence, Dominant: ${dominantExpression}) across ${framesAnalyzed} frames.`);
         navigateTo('view-results');
         renderResults(mappedMood, confidenceVal);
       } else {
-        navigateTo('view-results');
-        runSimulatedScanResult('No face detected — analyzing ambient vibes...');
+        console.warn('[MoodBeats Webcam] ⚠️ No face detected in frame during scan.');
+        showToast('👤 No face detected. Please position your face in the frame and tap Retry.');
+        if (captureBtn) {
+          captureBtn.disabled = false;
+          captureBtn.querySelector('span').innerText = 'Retry Scan';
+        }
+        if (scanBar) scanBar.classList.remove('scanning');
       }
       return;
     }
 
     try {
-      const detection = await faceapi
-        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.15 }))
-        .withFaceLandmarks()
-        .withFaceExpressions();
+      if (video.videoWidth > 0) {
+        framesAnalyzed++;
+        const detection = await faceapi
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.15 }))
+          .withFaceLandmarks()
+          .withFaceExpressions();
 
-      if (detection) {
-        bestDetection = detection;
-        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-        const resized = faceapi.resizeResults(detection, displaySize);
-        faceapi.draw.drawDetections(overlayCanvas, resized);
-        faceapi.draw.drawFaceLandmarks(overlayCanvas, resized);
+        if (detection) {
+          bestDetection = detection;
+          overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+          const resized = faceapi.resizeResults(detection, displaySize);
+          faceapi.draw.drawDetections(overlayCanvas, resized);
+          faceapi.draw.drawFaceLandmarks(overlayCanvas, resized);
+        }
       }
     } catch (err) {
-      console.error('[MoodBeats] Frame detection error:', err);
+      console.error('[MoodBeats] Frame detection error:', err.message);
     }
 
     if (state.webcamStream) requestAnimationFrame(detectLoop);
