@@ -1698,7 +1698,16 @@ function initHardwareBackListener() {
   });
 }
 
-function navigateTo(viewId, pushToHistory = true) {
+function normalizeViewId(viewId) {
+  if (!viewId) return 'view-landing';
+  if (viewId === 'home') return 'view-landing';
+  if (!viewId.startsWith('view-')) return 'view-' + viewId;
+  return viewId;
+}
+
+function navigateTo(rawViewId, pushToHistory = true) {
+  const viewId = normalizeViewId(rawViewId);
+
   // Clear any existing pairing sync polling interval
   if (state.syncPollInterval) {
     clearInterval(state.syncPollInterval);
@@ -5427,6 +5436,23 @@ function initSupabaseAuthUI() {
         if (savedBadge) savedBadge.textContent = `${savedSongs.length} track${savedSongs.length === 1 ? '' : 's'}`;
         if (moodBadge) moodBadge.textContent = `${moodHistory.length} scan${moodHistory.length === 1 ? '' : 's'}`;
 
+        // Spotify Profile Header & Stats
+        const profUser = document.getElementById('profile-username-text');
+        const profEmail = document.getElementById('profile-email-text');
+        const profSaved = document.getElementById('profile-stats-saved');
+        const profPlaylists = document.getElementById('profile-stats-playlists');
+        const profScans = document.getElementById('profile-stats-scans');
+        const profSavedTag = document.getElementById('profile-saved-count-tag');
+        const profPlTag = document.getElementById('profile-playlist-count-tag');
+
+        if (profUser) profUser.textContent = displayName;
+        if (profEmail) profEmail.textContent = email;
+        if (profSaved) profSaved.textContent = savedSongs.length;
+        if (profPlaylists) profPlaylists.textContent = playlists.length;
+        if (profScans) profScans.textContent = moodHistory.length;
+        if (profSavedTag) profSavedTag.textContent = savedSongs.length;
+        if (profPlTag) profPlTag.textContent = playlists.length;
+
         // 2. Render Saved Songs
         const savedListEl = document.getElementById('myspace-saved-list');
         if (savedListEl) {
@@ -5534,6 +5560,23 @@ function initSupabaseAuthUI() {
         headerUserIcon.parentElement.style.borderColor = 'rgba(255, 255, 255, 0.15)';
         headerUserIcon.parentElement.style.background = 'rgba(255, 255, 255, 0.08)';
       }
+
+      // Spotify Guest Profile & Stats
+      const profUser = document.getElementById('profile-username-text');
+      const profEmail = document.getElementById('profile-email-text');
+      const profSaved = document.getElementById('profile-stats-saved');
+      const profPlaylists = document.getElementById('profile-stats-playlists');
+      const profScans = document.getElementById('profile-stats-scans');
+      const profSavedTag = document.getElementById('profile-saved-count-tag');
+      const profPlTag = document.getElementById('profile-playlist-count-tag');
+
+      if (profUser) profUser.textContent = 'Guest User';
+      if (profEmail) profEmail.textContent = 'Sign in to sync your mood history';
+      if (profSaved) profSaved.textContent = (state.likedSongs || []).length;
+      if (profPlaylists) profPlaylists.textContent = (state.userPlaylists || []).length;
+      if (profScans) profScans.textContent = (state.history || []).length;
+      if (profSavedTag) profSavedTag.textContent = (state.likedSongs || []).length;
+      if (profPlTag) profPlTag.textContent = (state.userPlaylists || []).length;
     }
   };
 
@@ -5679,17 +5722,26 @@ function initSupabaseAuthUI() {
     });
   }
 
-  // Sign Out
-  if (btnSignOut) {
-    btnSignOut.addEventListener('click', async () => {
-      try {
+  // Sign Out from Modal or Settings
+  const handleSignOut = async () => {
+    try {
+      if (window.MoodSupabase) {
         await window.MoodSupabase.signOut();
-        showToast('Signed out of MoodBeats');
-        await updateAuthUI();
-      } catch (err) {
-        showToast('Error signing out');
       }
-    });
+      showToast('Signed out of MoodBeats');
+      await updateAuthUI();
+    } catch (err) {
+      showToast('Error signing out');
+    }
+  };
+
+  if (btnSignOut) {
+    btnSignOut.addEventListener('click', handleSignOut);
+  }
+
+  const btnLogoutSettings = document.getElementById('btn-logout-settings');
+  if (btnLogoutSettings) {
+    btnLogoutSettings.addEventListener('click', handleSignOut);
   }
 
   // Cloud Sync
@@ -5724,6 +5776,11 @@ function initSupabaseAuthUI() {
       }
     });
   }
+
+  // Expose showView globally
+  window.showView = function(v) { navigateTo(v); };
+  window.navigateTo = navigateTo;
+  window.navigateToView = navigateTo;
 
   // Check on load
   updateAuthUI();

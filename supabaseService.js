@@ -200,6 +200,10 @@ window.MoodSupabase = {
     }
   },
 
+  async syncMoodScan(mood, confidence = 85) {
+    return this.logMood(mood, 'face_scan', confidence);
+  },
+
   async getMoodHistory(limit = 15) {
     const client = getSupabase();
     const user = await this.getUser();
