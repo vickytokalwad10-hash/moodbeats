@@ -230,6 +230,7 @@ const MOOD_METADATA = {
 // ==========================================
 const state = {
   currentView: 'view-landing',
+  navHistory: ['view-landing'],
   history: [],
   isLightMode: false,
   faceModelsLoaded: false,
@@ -1348,11 +1349,134 @@ function updateMascotExpression(text) {
 // ==========================================
 // 5. Navigation & View Routing
 // ==========================================
-function navigateTo(viewId) {
+let lastBackPressTimestamp = 0;
+
+function closeTopmostOverlay() {
+  // 1. Fullscreen Now Playing panel
+  const npPanel = document.getElementById('now-playing-panel');
+  if (npPanel && npPanel.classList.contains('open')) {
+    closeNowPlaying();
+    return true;
+  }
+
+  // 2. Lyrics drawer inside Now Playing
+  const lyricsDrawer = document.getElementById('np-lyrics-drawer');
+  if (lyricsDrawer && lyricsDrawer.style.display !== 'none') {
+    lyricsDrawer.style.display = 'none';
+    return true;
+  }
+
+  // 3. Open modal backdrops
+  const openModals = Array.from(document.querySelectorAll('.modal-backdrop, .modal, .bottom-sheet, .drawer')).filter(m => {
+    const style = window.getComputedStyle(m);
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+  });
+
+  if (openModals.length > 0) {
+    const topModal = openModals[openModals.length - 1];
+    topModal.style.display = 'none';
+    topModal.classList.remove('open', 'active');
+    return true;
+  }
+
+  // 4. Video drawer in mini player
+  const videoDrawer = document.getElementById('player-video-drawer');
+  if (videoDrawer && videoDrawer.classList.contains('open')) {
+    videoDrawer.classList.remove('open');
+    state.isVideoOpen = false;
+    return true;
+  }
+
+  return false;
+}
+
+async function handleHardwareBackButton() {
+  // 1. Priority 1: Close active modal, drawer, or full-screen Now Playing panel
+  if (closeTopmostOverlay()) {
+    return;
+  }
+
+  // 2. Priority 2: Stop camera if currently scanning
+  if (state.currentView === 'view-webcam' && (state.isWebcamActive || state.webcamStream)) {
+    stopWebcam();
+    navigateTo('view-landing');
+    return;
+  }
+
+  // 3. Priority 3: In-App Screen Navigation History Stack (Non-Home Screen)
+  if (!state.navHistory) state.navHistory = ['view-landing'];
+
+  if (state.navHistory.length > 1) {
+    state.navHistory.pop(); // Remove current view from stack
+    const prevView = state.navHistory[state.navHistory.length - 1];
+    navigateTo(prevView, false); // Switch without pushing to history
+    return;
+  } else if (state.currentView && state.currentView !== 'view-landing') {
+    navigateTo('view-landing', false);
+    state.navHistory = ['view-landing'];
+    return;
+  }
+
+  // 4. Priority 4: On Home Screen (view-landing) -> Double back press to exit
+  const now = Date.now();
+  if (now - lastBackPressTimestamp < 2000) {
+    // Double press confirmed within 2 seconds: exit app
+    // Note: Foreground Service background audio continues playback
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+      window.Capacitor.Plugins.App.exitApp();
+    }
+  } else {
+    lastBackPressTimestamp = now;
+    showToast('Press back again to exit', 2000);
+  }
+}
+
+function initHardwareBackListener() {
+  // Capacitor Native Android Back Button Bridge
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+    const App = window.Capacitor.Plugins.App;
+    try {
+      App.removeAllListeners?.().then(() => {
+        App.addListener('backButton', () => {
+          handleHardwareBackButton();
+        });
+        console.log('[MoodBeats] Capacitor backButton listener registered.');
+      }).catch(() => {
+        App.addListener('backButton', () => {
+          handleHardwareBackButton();
+        });
+      });
+    } catch(e) {
+      App.addListener('backButton', () => {
+        handleHardwareBackButton();
+      });
+    }
+  }
+
+  // Browser / Mobile Web History fallback
+  window.addEventListener('popstate', () => {
+    handleHardwareBackButton();
+  });
+}
+
+function navigateTo(viewId, pushToHistory = true) {
   // Clear any existing pairing sync polling interval
   if (state.syncPollInterval) {
     clearInterval(state.syncPollInterval);
     state.syncPollInterval = null;
+  }
+
+  // Maintain in-app history stack
+  if (!state.navHistory) state.navHistory = ['view-landing'];
+  if (pushToHistory) {
+    const currentTop = state.navHistory[state.navHistory.length - 1];
+    if (currentTop !== viewId) {
+      if (viewId === 'view-landing') {
+        state.navHistory = ['view-landing'];
+      } else {
+        state.navHistory.push(viewId);
+      }
+    }
   }
 
   const activeView = document.querySelector('.view.active');
@@ -4186,7 +4310,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Back buttons binding
   document.querySelectorAll('.btn-back').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      navigateTo('view-landing');
+      handleHardwareBackButton();
     });
   });
   
@@ -4540,6 +4664,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   
   lucide.createIcons();
+  
+  // Initialize Hardware Back Button Listener (Capacitor & Web)
+  initHardwareBackListener();
   
   // Pre-warm face models silently in the background 3s after page load
   // so they are ready instantly when the user navigates to the scan view
