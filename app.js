@@ -930,26 +930,62 @@ function initSoundscapesHub() {
   lucide.createIcons();
 }
 
-// Play a song using the <audio> element with automatic quality fallback & queue sync
+// ─────────────────────────────────────────────────────────────────
+// SPOTIFY-STYLE UNIFIED PLAYBACK ENGINE & QUEUE CONTROLLER
+// ─────────────────────────────────────────────────────────────────
+
+let currentStreamRequestId = 0;
+
+function updatePlayerLoadingState(isLoading) {
+  const miniPlayIcon = document.getElementById('player-play-icon');
+  const npPlayIcon = document.getElementById('np-play-icon');
+  const playerPrev = document.getElementById('player-prev');
+  const playerNext = document.getElementById('player-next');
+  const npPrev = document.getElementById('np-prev');
+  const npNext = document.getElementById('np-next');
+
+  if (isLoading) {
+    if (miniPlayIcon) miniPlayIcon.outerHTML = '<div class="spinner" id="player-play-icon" style="width:16px;height:16px;border-width:2px;border-top-color:#fff;"></div>';
+    if (npPlayIcon) npPlayIcon.outerHTML = '<div class="spinner" id="np-play-icon" style="width:24px;height:24px;border-width:3px;border-top-color:#fff;"></div>';
+    if (playerPrev) playerPrev.disabled = true;
+    if (playerNext) playerNext.disabled = true;
+    if (npPrev) npPrev.disabled = true;
+    if (npNext) npNext.disabled = true;
+  } else {
+    const playIconTag = state.saavnIsPlaying ? 'pause' : 'play';
+    const curMini = document.getElementById('player-play-icon');
+    const curNp = document.getElementById('np-play-icon');
+    if (curMini) curMini.outerHTML = `<i data-lucide="${playIconTag}" id="player-play-icon" style="width:18px;height:18px;fill:currentColor;margin-left:1px;"></i>`;
+    if (curNp) curNp.outerHTML = `<i data-lucide="${playIconTag}" id="np-play-icon"></i>`;
+    if (playerPrev) playerPrev.disabled = false;
+    if (playerNext) playerNext.disabled = false;
+    if (npPrev) npPrev.disabled = false;
+    if (npNext) npNext.disabled = false;
+    lucide.createIcons();
+  }
+}
+
+// Play a song using HTML5 Audio with queue preservation, proxy fallback, and MediaSession sync
 function saavnPlaySong(song, queue = null, index = null) {
-  console.log('[MoodBeats Audio Pipeline] 🎵 Track requested for playback:', {
-    id: song?.id,
-    title: song?.title || song?.name,
-    artist: song?.artist || song?.primaryArtists,
-    hasDownloadUrl: !!song?.downloadUrl,
-    hasStreamUrl: !!song?.streamUrl,
-    downloadUrlType: typeof song?.downloadUrl,
+  if (!song) return;
+  const requestId = ++currentStreamRequestId;
+
+  console.log('[MoodBeats Audio Pipeline] 🎵 Playing track:', {
+    id: song.id,
+    title: song.title || song.name,
+    artist: song.artist || song.primaryArtists,
+    hasStream: !!(song.downloadUrl || song.streamUrl)
   });
 
-  let url = (window.JSA ? window.JSA.bestStreamUrl(song) : null) || song?.downloadUrl || song?.streamUrl;
-
-  // Set up queue context immediately so UI is responsive
+  // Set up Queue Context
   if (queue && Array.isArray(queue) && queue.length > 0) {
     state.playQueue = [...queue];
+    state.originalQueue = [...queue];
     state.queueIndex = index !== null && index >= 0 ? index : state.playQueue.findIndex(s => s.id === song.id);
     if (state.queueIndex < 0) state.queueIndex = 0;
   } else if (state.playQueue.length === 0) {
     state.playQueue = [song];
+    state.originalQueue = [song];
     state.queueIndex = 0;
   } else {
     const foundIdx = state.playQueue.findIndex(s => s.id === song.id);
@@ -961,45 +997,42 @@ function saavnPlaySong(song, queue = null, index = null) {
     }
   }
 
-  // Stop YouTube player if active
+  // Stop any other active media players
   if (typeof ytPlayer !== 'undefined' && ytPlayer?.pauseVideo) {
     try { ytPlayer.pauseVideo(); } catch(e) {}
   }
 
-  // Reuse or create audio element
+  // Initialize Audio Element if not exists
   if (!state.saavnAudio) {
     state.saavnAudio = new Audio();
     state.saavnAudio.preload = 'auto';
 
     state.saavnAudio.addEventListener('loadstart', () => {
-      console.log('[MoodBeats Audio] ⏳ loadstart initiated for URL:', state.saavnAudio.src);
-    });
-
-    state.saavnAudio.addEventListener('loadedmetadata', () => {
-      console.log('[MoodBeats Audio] 📊 loadedmetadata: Duration =', state.saavnAudio.duration, 'seconds');
+      console.log('[MoodBeats Audio] ⏳ Stream loading started');
     });
 
     state.saavnAudio.addEventListener('canplay', () => {
-      console.log('[MoodBeats Audio] ▶️ canplay event fired! Audio ready to render.');
+      console.log('[MoodBeats Audio] ▶️ canplay fired — Audio stream ready');
+      updatePlayerLoadingState(false);
     });
 
     state.saavnAudio.addEventListener('playing', () => {
-      console.log('[MoodBeats Audio] 🔊 Audio is now actively playing.');
       state.saavnIsPlaying = true;
       state.isPlaying = true;
+      updatePlayerLoadingState(false);
       updateSaavnPlayerUI(true);
+      updateNPPlayPauseIcon(true);
     });
 
-    state.saavnAudio.addEventListener('waiting', () => {
-      console.warn('[MoodBeats Audio] ⏳ Buffering chunk...');
-    });
-
-    state.saavnAudio.addEventListener('stalled', () => {
-      console.warn('[MoodBeats Audio] ⚠️ Audio stream stalled. Checking network...');
+    state.saavnAudio.addEventListener('pause', () => {
+      state.saavnIsPlaying = false;
+      state.isPlaying = false;
+      updateSaavnPlayerUI(false);
+      updateNPPlayPauseIcon(false);
     });
 
     state.saavnAudio.addEventListener('ended', () => {
-      console.log('[MoodBeats Audio] 🏁 Track ended naturally.');
+      console.log('[MoodBeats Audio] 🏁 Track ended naturally');
       if (state.repeatMode === 'one') {
         state.saavnAudio.currentTime = 0;
         state.saavnAudio.play().catch(() => {});
@@ -1008,160 +1041,131 @@ function saavnPlaySong(song, queue = null, index = null) {
       saavnNext(true);
     });
 
-    state.saavnAudio.addEventListener('error', (e) => {
+    state.saavnAudio.addEventListener('error', () => {
       const err = state.saavnAudio.error;
-      const errorCodes = {
-        1: 'MEDIA_ERR_ABORTED (User aborted fetching)',
-        2: 'MEDIA_ERR_NETWORK (Network error occurred while fetching)',
-        3: 'MEDIA_ERR_DECODE (Error decoding media file)',
-        4: 'MEDIA_ERR_SRC_NOT_SUPPORTED (Source format or stream URL not supported)'
-      };
-      const codeMsg = err ? errorCodes[err.code] || `Unknown Code (${err.code})` : 'Unknown Error';
-      console.error('[MoodBeats Audio Error] ❌ HTML5 Audio element error:', codeMsg, 'Current src:', state.saavnAudio.src);
-
+      console.error('[MoodBeats Audio Error] ❌ Media error occurred:', err ? err.code : 'Unknown');
       const currentUrl = state.saavnAudio.src;
 
-      // Tier 1: Try Next CDN Quality Fallback (160k -> 96k)
+      // Tier 1: Next CDN quality fallback
       const fallbackUrl = (window.JSA && state.saavnCurrentSong) ? window.JSA.nextFallbackUrl(state.saavnCurrentSong, currentUrl) : null;
       if (fallbackUrl) {
-        console.log('[MoodBeats Audio Recovery] 🔄 Switching to fallback stream quality:', fallbackUrl);
-        showToast('🔄 Switching to fallback audio quality...');
+        showToast('🔄 Switching to fallback stream quality...');
         state.saavnAudio.src = fallbackUrl;
-        state.saavnAudio.play().catch(playErr => console.warn('[MoodBeats Audio] Fallback play error:', playErr));
+        state.saavnAudio.play().catch(() => {});
         return;
       }
 
-      // Tier 2: Try Backend Audio Proxy Stream (Bypasses CDN/ISP/CORS blocks)
+      // Tier 2: Backend Audio Proxy Stream
       if (window.JSA && currentUrl && !currentUrl.includes('/api/stream/audio')) {
         const proxiedUrl = window.JSA.getProxiedAudioUrl(currentUrl);
-        console.log('[MoodBeats Audio Recovery] 🛡️ Attempting backend stream proxy:', proxiedUrl);
-        showToast('🔄 Routing audio through stream proxy...');
+        showToast('🔄 Routing through high-speed audio proxy...');
         state.saavnAudio.src = proxiedUrl;
-        state.saavnAudio.play().catch(playErr => console.warn('[MoodBeats Audio] Proxy play error:', playErr));
+        state.saavnAudio.play().catch(() => {});
         return;
       }
 
-      // Tier 3: Skip to next track
-      showToast('⚠️ Could not stream this song. Skipping to next...');
+      // Tier 3: Auto-skip
+      showToast('⚠️ Could not play track. Skipping to next...');
       saavnNext(true);
     });
 
     state.saavnAudio.addEventListener('timeupdate', updateSaavnProgress);
   }
 
-  // Async stream resolution helper if URL is missing on the song object
-  const executePlay = (streamUrl) => {
-    console.log('[MoodBeats Audio Pipeline] 🚀 Initiating playback with stream URL:', streamUrl);
+  // Pre-update UI with current song details immediately
+  state.saavnCurrentSong = song;
+  state.currentPlayerSong = song;
+  updateSaavnPlayerUI(true);
+  syncNowPlayingPanel(song, state.queueIndex);
+  renderQueueUI();
 
-    // Initialize or resume equalizer safely
+  // Async stream playback executor
+  const executePlay = (streamUrl) => {
+    if (requestId !== currentStreamRequestId) return; // Stale request discarded
+    console.log('[MoodBeats Audio Pipeline] 🚀 Executing stream playback:', streamUrl);
+
     try {
       initEqualizer();
       if (state.eqContext && state.eqContext.state === 'suspended') {
         state.eqContext.resume().catch(() => {});
       }
-    } catch(eqErr) {
-      console.warn('[MoodBeats Audio] Web Audio Context note:', eqErr.message);
-    }
+    } catch(e) {}
 
     state.saavnAudio.src = streamUrl;
-    state.saavnCurrentSong = song;
     state.saavnIsPlaying = true;
     state.isPlaying = true;
 
     state.saavnAudio.play().then(() => {
-      console.log('[MoodBeats Audio] 🎵 Playback started successfully.');
-      notifyAndroidBridge('metadata', { title: song.title, artist: song.artist });
+      updatePlayerLoadingState(false);
+      notifyAndroidBridge('metadata', { title: song.title || song.name, artist: song.artist || song.primaryArtists });
       notifyAndroidBridge('playback', { isPlaying: true, position: 0, duration: song.duration || 0 });
     }).catch(playErr => {
-      console.warn('[MoodBeats Audio] ⚠️ Audio play() rejected:', playErr.message);
-      if (playErr.name === 'NotAllowedError') {
-        showToast('⚠️ Tap play to enable audio');
-      } else {
-        // If play failed on direct CDN, try proxied stream
-        if (window.JSA && streamUrl && !streamUrl.includes('/api/stream/audio')) {
-          const proxiedUrl = window.JSA.getProxiedAudioUrl(streamUrl);
-          console.log('[MoodBeats Audio] 🔄 Retrying with backend proxy:', proxiedUrl);
-          state.saavnAudio.src = proxiedUrl;
-          state.saavnAudio.play().catch(() => {});
-        }
+      console.warn('[MoodBeats Audio] Play promise note:', playErr.message);
+      if (window.JSA && streamUrl && !streamUrl.includes('/api/stream/audio')) {
+        const proxied = window.JSA.getProxiedAudioUrl(streamUrl);
+        state.saavnAudio.src = proxied;
+        state.saavnAudio.play().catch(() => {});
       }
     });
   };
 
+  let url = (window.JSA ? window.JSA.bestStreamUrl(song) : null) || song?.downloadUrl || song?.streamUrl;
+
   if (!url && song?.id && window.JSA?.getStream) {
-    console.log('[MoodBeats Audio Pipeline] ⏳ Fetching fresh stream for song ID:', song.id);
-    showToast('⏳ Loading high quality stream...');
+    updatePlayerLoadingState(true);
+    showToast('⏳ Loading high-quality stream...');
     window.JSA.getStream(song.id).then(streamData => {
+      if (requestId !== currentStreamRequestId) return;
       if (streamData && streamData.streamUrl) {
         song.downloadUrl = streamData.streamUrl;
         song.streamFallbacks = streamData.fallbacks || [];
         executePlay(streamData.streamUrl);
       } else {
-        showToast('⚠️ Stream URL not available for this song');
+        updatePlayerLoadingState(false);
+        showToast('⚠️ Stream URL not available');
       }
     }).catch(err => {
-      console.error('[MoodBeats Audio Pipeline] Stream fetch failed:', err);
-      showToast('⚠️ Stream URL resolution failed');
+      if (requestId !== currentStreamRequestId) return;
+      updatePlayerLoadingState(false);
+      console.error('[MoodBeats Audio] Stream error:', err);
+      showToast('⚠️ Failed to load stream URL');
     });
   } else if (url) {
     executePlay(url);
   } else {
-    showToast('⚠️ Stream URL not available for this song');
+    showToast('⚠️ Track URL not available');
     return;
   }
 
-  // Track recently played
-  if (song && song.title) {
+  // Add to recently played
+  if (song && (song.title || song.name)) {
     addToRecentlyPlayed({
       id: song.id,
-      title: song.title,
-      artist: song.artist || 'JioSaavn Artist',
+      title: song.title || song.name,
+      artist: song.artist || song.primaryArtists || 'Artist',
       artwork: song.image || 'icon.png'
     });
   }
 
-  updateSaavnPlayerUI(true);
-  updateAllLikeButtons(song);
-  syncNowPlayingPanel(song, state.queueIndex);
-  renderQueueUI();
-
-  // Update Player Bar UI immediately
-  const playerBar = document.getElementById('player-bar');
-  if (playerBar) {
-    playerBar.style.display = 'flex';
-    playerBar.style.visibility = 'visible';
-    playerBar.style.opacity = '1';
-    void playerBar.offsetHeight;
-    playerBar.classList.add('active');
-    document.body.classList.add('player-active');
-  }
-
-  const titleEl = document.getElementById('player-title');
-  const artistEl = document.getElementById('player-artist');
-  const artEl = document.getElementById('player-art');
-  if (titleEl) titleEl.innerText = song.title || song.name || 'Song Title';
-  if (artistEl) artistEl.innerText = song.artist || song.primaryArtists || 'Artist';
-  if (artEl && song.image) {
-    artEl.style.background = 'none';
-    artEl.innerHTML = `<img src="${song.image}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
-  }
-
-  // Notify Android Foreground Service Bridge immediately
-  notifyAndroidBridge('metadata', { title: song.title, artist: song.artist });
-  notifyAndroidBridge('playback', { isPlaying: true, position: 0, duration: song.duration || 0 });
-
-  // Update media session
+  // Update MediaSession with full Spotify-standard handlers
   if ('mediaSession' in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: song.title,
-      artist: song.artist,
-      album: song.album || 'MoodBeats',
-      artwork: song.image ? [{ src: song.image, sizes: '500x500', type: 'image/jpeg' }] : []
+      title: song.title || song.name,
+      artist: song.artist || song.primaryArtists || 'Artist',
+      album: song.album || song.genre || 'MoodBeats',
+      artwork: song.image ? [{ src: song.image, sizes: '500x500', type: 'image/jpeg' }] : [{ src: 'icon.png', sizes: '192x192', type: 'image/png' }]
     });
+    navigator.mediaSession.playbackState = 'playing';
     navigator.mediaSession.setActionHandler('play', () => saavnTogglePlay());
     navigator.mediaSession.setActionHandler('pause', () => saavnTogglePlay());
     navigator.mediaSession.setActionHandler('nexttrack', () => saavnNext());
     navigator.mediaSession.setActionHandler('previoustrack', () => saavnPrev());
+    navigator.mediaSession.setActionHandler('seekto', (details) => {
+      if (state.saavnAudio && details.seekTime !== undefined) {
+        state.saavnAudio.currentTime = details.seekTime;
+        updateSaavnProgress();
+      }
+    });
   }
 }
 
@@ -1175,7 +1179,7 @@ function saavnTogglePlay() {
     if (state.eqContext && state.eqContext.state === 'suspended') {
       state.eqContext.resume().catch(() => {});
     }
-    state.saavnAudio.play().catch(e => console.warn('Play failed', e));
+    state.saavnAudio.play().catch(e => console.warn('Play note:', e));
     state.saavnIsPlaying = true;
     state.isPlaying = true;
   }
@@ -1192,26 +1196,22 @@ function saavnNext(isAutoEnded = false) {
   const q = state.playQueue;
   if (!q || q.length === 0) return;
 
-  if (state.isShuffle && q.length > 1) {
-    let nextIdx = Math.floor(Math.random() * q.length);
-    if (nextIdx === state.queueIndex) nextIdx = (nextIdx + 1) % q.length;
-    state.queueIndex = nextIdx;
-    saavnPlaySong(q[nextIdx]);
+  if (state.repeatMode === 'one' && isAutoEnded) {
+    if (state.saavnAudio) {
+      state.saavnAudio.currentTime = 0;
+      state.saavnAudio.play().catch(() => {});
+    }
     return;
   }
 
   if (state.queueIndex < q.length - 1) {
     state.queueIndex++;
     saavnPlaySong(q[state.queueIndex]);
-  } else if (state.repeatMode === 'all') {
-    state.queueIndex = 0;
-    saavnPlaySong(q[0]);
-  } else if (!isAutoEnded) {
-    // If manual press on last song without repeat, loop back to beginning
+  } else if (state.repeatMode === 'all' || !isAutoEnded) {
     state.queueIndex = 0;
     saavnPlaySong(q[0]);
   } else {
-    // End of playlistreached in repeat off mode
+    // End of playlist in repeat off mode
     state.saavnIsPlaying = false;
     state.isPlaying = false;
     updateSaavnPlayerUI(false);
@@ -1222,11 +1222,14 @@ function saavnNext(isAutoEnded = false) {
 
 function saavnPrev() {
   if (!state.playQueue || state.playQueue.length === 0) return;
-  // If > 3 seconds in, restart track
+
+  // Spotify Standard Rule: If > 3 seconds in, restart track
   if (state.saavnAudio && state.saavnAudio.currentTime > 3) {
     state.saavnAudio.currentTime = 0;
+    updateSaavnProgress();
     return;
   }
+
   if (state.queueIndex > 0) {
     state.queueIndex--;
     saavnPlaySong(state.playQueue[state.queueIndex]);
@@ -1234,31 +1237,89 @@ function saavnPrev() {
     state.queueIndex = state.playQueue.length - 1;
     saavnPlaySong(state.playQueue[state.queueIndex]);
   } else {
-    state.saavnAudio.currentTime = 0;
+    if (state.saavnAudio) state.saavnAudio.currentTime = 0;
+    updateSaavnProgress();
   }
 }
 
+function toggleShuffle() {
+  state.isShuffle = !state.isShuffle;
+  const btn = document.getElementById('np-shuffle');
+
+  if (state.isShuffle) {
+    if (btn) btn.classList.add('active');
+    if (state.playQueue && state.playQueue.length > 1) {
+      if (!state.originalQueue || state.originalQueue.length === 0) {
+        state.originalQueue = [...state.playQueue];
+      }
+      const played = state.playQueue.slice(0, state.queueIndex + 1);
+      const remaining = state.playQueue.slice(state.queueIndex + 1);
+      // Fisher-Yates shuffle remaining upcoming tracks
+      for (let i = remaining.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+      }
+      state.playQueue = [...played, ...remaining];
+    }
+    showToast('Shuffle: On 🔀');
+  } else {
+    if (btn) btn.classList.remove('active');
+    if (state.originalQueue && state.originalQueue.length > 0) {
+      const currentSong = state.playQueue[state.queueIndex];
+      state.playQueue = [...state.originalQueue];
+      const newIdx = state.playQueue.findIndex(s => s.id === currentSong?.id);
+      state.queueIndex = newIdx >= 0 ? newIdx : 0;
+    }
+    showToast('Shuffle: Off ➡️');
+  }
+  renderQueueUI();
+}
+
+function cycleRepeatMode() {
+  const btn = document.getElementById('np-repeat');
+  const badge = document.getElementById('np-repeat-one-badge');
+
+  if (state.repeatMode === 'off') {
+    state.repeatMode = 'all';
+    if (btn) btn.classList.add('active');
+    if (badge) badge.style.display = 'none';
+    showToast('Repeat: All 🔁');
+  } else if (state.repeatMode === 'all') {
+    state.repeatMode = 'one';
+    if (btn) btn.classList.add('active');
+    if (badge) badge.style.display = 'flex';
+    showToast('Repeat: One 🔂');
+  } else {
+    state.repeatMode = 'off';
+    if (btn) btn.classList.remove('active');
+    if (badge) badge.style.display = 'none';
+    showToast('Repeat: Off ➡️');
+  }
+}
+
+function seekAudioToPercent(pct) {
+  if (!state.saavnAudio || !state.saavnAudio.duration || isNaN(state.saavnAudio.duration)) return;
+  const clamped = Math.max(0, Math.min(1, pct));
+  state.saavnAudio.currentTime = clamped * state.saavnAudio.duration;
+  updateSaavnProgress();
+}
+
 function updateSaavnProgress() {
-  if (!state.saavnAudio) return;
+  if (!state.saavnAudio || state.isDraggingScrubber) return;
   const curTime = state.saavnAudio.currentTime || 0;
   const duration = state.saavnAudio.duration || 0;
   const pct = duration > 0 ? (curTime / duration) * 100 : 0;
 
-  // Mini Player Bar Scrubber
+  // Mini Player Bar Scrubber Fill
   const fill = document.getElementById('player-progress-fill');
-  const thumb = document.getElementById('player-progress-thumb');
-  const cur = document.getElementById('player-time-current');
-  const dur = document.getElementById('player-time-total');
   if (fill) fill.style.width = pct + '%';
-  if (thumb) thumb.style.left = pct + '%';
-  if (cur) cur.textContent = formatTime(curTime);
-  if (dur) dur.textContent = formatTime(duration);
 
-  // Sync Now Playing scrubber if open
+  // Now Playing Scrubber Fill & Thumb
   const npFill = document.getElementById('np-progress-fill');
   const npThumb = document.getElementById('np-progress-thumb');
   const npCur = document.getElementById('np-time-current');
   const npDur = document.getElementById('np-time-total');
+
   if (npFill) npFill.style.width = pct + '%';
   if (npThumb) npThumb.style.left = pct + '%';
   if (npCur) npCur.textContent = formatTime(curTime);
@@ -1269,27 +1330,106 @@ function updateSaavnPlayerUI(isPlaying) {
   const bar = document.getElementById('player-bar');
   if (bar) {
     bar.style.display = 'flex';
+    bar.style.visibility = 'visible';
+    bar.style.opacity = '1';
     void bar.offsetHeight;
     if (state.saavnCurrentSong) bar.classList.add('active');
     document.body.classList.add('player-active');
   }
 
   const playIcon = document.getElementById('player-play-icon');
-  const playIconMobile = document.getElementById('player-play-icon-mobile');
   if (playIcon) playIcon.setAttribute('data-lucide', isPlaying ? 'pause' : 'play');
-  if (playIconMobile) playIconMobile.setAttribute('data-lucide', isPlaying ? 'pause' : 'play');
-  lucide.createIcons();
+
+  const artEq = document.getElementById('player-art-eq');
+  if (artEq) artEq.style.display = isPlaying ? 'flex' : 'none';
 
   const title = document.getElementById('player-title');
   const artist = document.getElementById('player-artist');
   const art = document.getElementById('player-art');
+
   if (state.saavnCurrentSong) {
     if (title) title.textContent = state.saavnCurrentSong.title || state.saavnCurrentSong.name || 'Song Title';
     if (artist) artist.textContent = state.saavnCurrentSong.artist || state.saavnCurrentSong.primaryArtists || 'Artist';
-    if (art && state.saavnCurrentSong.image) {
-      art.style.background = 'none';
-      art.innerHTML = `<img src="${state.saavnCurrentSong.image}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
+    if (art) {
+      if (state.saavnCurrentSong.image) {
+        art.innerHTML = `<img src="${state.saavnCurrentSong.image}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;">`;
+      } else {
+        art.innerHTML = `<i data-lucide="music-4" class="song-art-icon"></i>`;
+      }
     }
+  }
+
+  updateAllLikeButtons(state.saavnCurrentSong);
+  lucide.createIcons();
+}
+
+function updateAllLikeButtons(song) {
+  if (!song) return;
+  const isLiked = state.likedSongs.some(s => s.id === song.id);
+
+  const miniLikeBtn = document.getElementById('player-bar-like');
+  const npLikeBtn = document.getElementById('np-like');
+  const npLikeIcon = document.getElementById('np-like-icon');
+
+  if (miniLikeBtn) {
+    miniLikeBtn.style.color = isLiked ? '#ef4444' : 'var(--text-muted)';
+    const icon = miniLikeBtn.querySelector('svg') || miniLikeBtn.querySelector('i');
+    if (icon) icon.style.fill = isLiked ? '#ef4444' : 'none';
+  }
+
+  if (npLikeBtn) {
+    npLikeBtn.style.color = isLiked ? '#ef4444' : 'var(--text-muted)';
+  }
+  if (npLikeIcon) {
+    npLikeIcon.style.fill = isLiked ? '#ef4444' : 'none';
+  }
+}
+
+function syncNowPlayingPanel(song, index) {
+  if (!song) return;
+  const npTitle = document.getElementById('np-title');
+  const npArtist = document.getElementById('np-artist');
+  const npArt = document.getElementById('np-art');
+  const npMoodBadge = document.getElementById('np-mood-badge');
+
+  if (npTitle) npTitle.textContent = song.title || song.name || 'Song Title';
+  if (npArtist) npArtist.textContent = song.artist || song.primaryArtists || 'Artist';
+
+  if (npArt) {
+    if (song.image) {
+      npArt.style.background = 'none';
+      npArt.innerHTML = `<img src="${song.image}" style="width:100%;height:100%;object-fit:cover;border-radius:20px;box-shadow:0 16px 40px rgba(0,0,0,0.6);">`;
+    } else {
+      npArt.innerHTML = `<i data-lucide="music-4" class="np-art-icon"></i>`;
+    }
+  }
+
+  // Mood Badge
+  if (npMoodBadge) {
+    const moodTag = song.mood || state.selectedMood;
+    if (moodTag) {
+      npMoodBadge.textContent = `${getMoodEmoji(moodTag)} ${moodTag}`;
+      npMoodBadge.style.display = 'inline-block';
+    } else {
+      npMoodBadge.style.display = 'none';
+    }
+  }
+
+  updateAllLikeButtons(song);
+  updateNPPlayPauseIcon(state.saavnIsPlaying);
+  lucide.createIcons();
+
+  if (document.getElementById('np-lyrics-drawer')?.style.display === 'flex') {
+    loadLyricsForCurrentSong();
+  }
+  startVisualizer();
+}
+
+function updateNPPlayPauseIcon(isPlaying) {
+  const icon = document.getElementById('np-play-icon');
+  if (icon) {
+    icon.setAttribute('data-lucide', isPlaying ? 'pause' : 'play');
+    lucide.createIcons();
   }
 }
 
@@ -3068,6 +3208,17 @@ function addSongToPlaylist(playlistId, song) {
   saveUserPlaylists();
   showToast(`Added to "${pl.name}"!`);
   
+  // Sync to Supabase user_playlist_tracks in cloud
+  if (window.MoodSupabase && window.MoodSupabase.addTrackToPlaylist) {
+    window.MoodSupabase.addTrackToPlaylist(playlistId, {
+      id: song.id || song.videoId,
+      title: song.title || song.name,
+      artist: song.artist || song.primaryArtists || 'Artist',
+      image: song.image || 'icon.png',
+      streamUrl: song.downloadUrl || song.streamUrl || ''
+    }).catch(e => console.warn('[Supabase] Playlist track sync note:', e));
+  }
+
   if (state.currentPlaylistView && state.currentPlaylistView.id === playlistId) {
     renderPlaylistDetailView(pl);
   }
@@ -4436,89 +4587,115 @@ document.addEventListener('DOMContentLoaded', () => {
     greetingEl.textContent = greeting;
   }
   
-  // Mobile mini player controls (mirror desktop controls)
-  const playMobile = document.getElementById('player-play-mobile');
-  const nextMobile = document.getElementById('player-next-mobile');
-  if (playMobile) {
-    playMobile.style.display = 'flex';
-    playMobile.addEventListener('click', (e) => { e.stopPropagation(); togglePlayPause(); });
-    // Keep mobile play icon in sync
-    const origPlay = document.getElementById('player-play');
-    if (origPlay) origPlay.style.display = 'none'; // hide desktop center play on mobile
-  }
-  if (nextMobile) {
-    nextMobile.style.display = 'flex';
-    nextMobile.addEventListener('click', (e) => { e.stopPropagation(); playNext(); });
-  }
-  
-  // Now Playing panel — open on tap of player left area
-  const playerLeft = document.getElementById('player-left-tap');
-  if (playerLeft) {
-    playerLeft.addEventListener('click', (e) => {
-      if (state.currentPlayerSong) openNowPlaying();
-    });
-  }
-  
-  // Now Playing panel controls
-  const npClose  = document.getElementById('np-close');
-  const npPlay   = document.getElementById('np-play');
-  const npPrev   = document.getElementById('np-prev');
-  const npNext   = document.getElementById('np-next');
-  const npShuffle= document.getElementById('np-shuffle');
-  const npRepeat = document.getElementById('np-repeat');
-  const npMute   = document.getElementById('np-mute');
-  const npVol    = document.getElementById('np-volume-slider');
-  // npToggleVideo removed — video tab removed from nav
+  // ─────────────────────────────────────────────────────────────────
+  // SPOTIFY-STYLE MINI & FULL-SCREEN PLAYER CONTROLS BINDING
+  // ─────────────────────────────────────────────────────────────────
+
+  // Mini Player Bar Controls
+  const miniPlayBtn = document.getElementById('player-play');
+  const miniPrevBtn = document.getElementById('player-prev');
+  const miniNextBtn = document.getElementById('player-next');
+  const miniLikeBtn = document.getElementById('player-bar-like');
+  const miniQueueBtn = document.getElementById('player-bar-queue');
+  const miniTimeline = document.getElementById('mini-player-timeline');
+
+  if (miniPlayBtn) miniPlayBtn.addEventListener('click', (e) => { e.stopPropagation(); saavnTogglePlay(); });
+  if (miniPrevBtn) miniPrevBtn.addEventListener('click', (e) => { e.stopPropagation(); saavnPrev(); });
+  if (miniNextBtn) miniNextBtn.addEventListener('click', (e) => { e.stopPropagation(); saavnNext(); });
+  if (miniLikeBtn) miniLikeBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleLikeSong(state.saavnCurrentSong); });
+  if (miniQueueBtn) miniQueueBtn.addEventListener('click', (e) => { e.stopPropagation(); openQueueModal(); });
+
+  // Now Playing Panel Controls
+  const npCloseBtn = document.getElementById('np-close');
+  const npPlayBtn = document.getElementById('np-play');
+  const npPrevBtn = document.getElementById('np-prev');
+  const npNextBtn = document.getElementById('np-next');
+  const npShuffleBtn = document.getElementById('np-shuffle');
+  const npRepeatBtn = document.getElementById('np-repeat');
+  const npLikeBtn = document.getElementById('np-like');
+  const npAddPlaylistBtn = document.getElementById('np-add-playlist-btn');
+  const npQueueBtn = document.getElementById('np-queue-btn');
+  const npMuteBtn = document.getElementById('np-mute');
+  const npVolSlider = document.getElementById('np-volume-slider');
   const npProgressTrack = document.getElementById('np-progress-track');
-  
-  if (npClose)  npClose.addEventListener('click', closeNowPlaying);
-  if (npPlay)   npPlay.addEventListener('click', togglePlayPause);
-  if (npPrev)   npPrev.addEventListener('click', playPrev);
-  if (npNext)   npNext.addEventListener('click', playNext);
-  
-  if (npShuffle) {
-    npShuffle.addEventListener('click', () => {
-      npShuffle.classList.toggle('active');
-    });
-  }
-  
-  if (npRepeat) {
-    npRepeat.addEventListener('click', () => {
-      npRepeat.classList.toggle('active');
-    });
-  }
-  
-  if (npMute) {
-    npMute.addEventListener('click', () => {
-      const volSlider = document.getElementById('player-volume-slider');
-      const muteBtn   = document.getElementById('player-mute');
-      if (muteBtn) muteBtn.click();
-    });
-  }
-  
-  if (npVol) {
-    npVol.addEventListener('input', (e) => {
-      const volSlider = document.getElementById('player-volume-slider');
-      if (volSlider) {
-        volSlider.value = e.target.value;
-        if (ytPlayer && typeof ytPlayer.setVolume === 'function') {
-          ytPlayer.setVolume(parseInt(e.target.value));
-        }
+
+  if (npCloseBtn) npCloseBtn.addEventListener('click', closeNowPlaying);
+  if (npPlayBtn) npPlayBtn.addEventListener('click', saavnTogglePlay);
+  if (npPrevBtn) npPrevBtn.addEventListener('click', saavnPrev);
+  if (npNextBtn) npNextBtn.addEventListener('click', saavnNext);
+  if (npShuffleBtn) npShuffleBtn.addEventListener('click', toggleShuffle);
+  if (npRepeatBtn) npRepeatBtn.addEventListener('click', cycleRepeatMode);
+  if (npLikeBtn) npLikeBtn.addEventListener('click', () => toggleLikeSong(state.saavnCurrentSong));
+  if (npAddPlaylistBtn) npAddPlaylistBtn.addEventListener('click', () => openAddToPlaylistModal(state.saavnCurrentSong));
+  if (npQueueBtn) npQueueBtn.addEventListener('click', openQueueModal);
+
+  // Volume Controls (Sync HTML5 Audio Volume)
+  if (npVolSlider) {
+    npVolSlider.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value) / 100;
+      if (state.saavnAudio) {
+        state.saavnAudio.volume = Math.max(0, Math.min(1, val));
+        state.saavnAudio.muted = false;
       }
+      const volIcon = document.getElementById('np-volume-icon');
+      if (volIcon) volIcon.setAttribute('data-lucide', val === 0 ? 'volume-x' : (val < 0.5 ? 'volume-1' : 'volume-2'));
+      lucide.createIcons();
     });
   }
-  
-  // NP scrubber seek
-  if (npProgressTrack) {
-    npProgressTrack.addEventListener('click', (e) => {
-      const rect = npProgressTrack.getBoundingClientRect();
-      const pct  = (e.clientX - rect.left) / rect.width;
-      if (ytPlayer && typeof ytPlayer.seekTo === 'function') {
-        const total = ytPlayer.getDuration() || 0;
-        ytPlayer.seekTo(pct * total, true);
-      }
+
+  if (npMuteBtn) {
+    npMuteBtn.addEventListener('click', () => {
+      if (!state.saavnAudio) return;
+      state.saavnAudio.muted = !state.saavnAudio.muted;
+      const isMuted = state.saavnAudio.muted;
+      const volIcon = document.getElementById('np-volume-icon');
+      if (volIcon) volIcon.setAttribute('data-lucide', isMuted ? 'volume-x' : 'volume-2');
+      if (npVolSlider) npVolSlider.value = isMuted ? 0 : Math.round(state.saavnAudio.volume * 100);
+      lucide.createIcons();
     });
   }
+
+  // Interactive Drag & Scrub Seek Handlers
+  function setupScrubber(trackEl) {
+    if (!trackEl) return;
+    let isDragging = false;
+
+    const computeAndSeek = (e) => {
+      const rect = trackEl.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const pct = (clientX - rect.left) / rect.width;
+      seekAudioToPercent(pct);
+    };
+
+    trackEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      computeAndSeek(e);
+    });
+
+    trackEl.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      state.isDraggingScrubber = true;
+      computeAndSeek(e);
+
+      const onMove = (moveEvt) => {
+        if (!isDragging) return;
+        computeAndSeek(moveEvt);
+      };
+
+      const onUp = () => {
+        isDragging = false;
+        state.isDraggingScrubber = false;
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+  }
+
+  setupScrubber(miniTimeline);
+  setupScrubber(npProgressTrack);
   
   // Close NP panel on swipe down
   let npTouchStartY = 0;

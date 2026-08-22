@@ -841,7 +841,20 @@ body.dark-theme .np-progress-track { background: rgba(255,255,255,0.12); }
 .np-btn i { width: 22px; height: 22px; }
 .np-btn:hover { color: var(--text-color); background: var(--surface-2); }
 .np-btn:active { transform: scale(0.9); }
-.np-btn.active { color: var(--accent-color); }
+.np-btn.active {
+  color: var(--accent-color) !important;
+  position: relative;
+}
+.np-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  background: var(--accent-color);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--accent-glow);
+}
 
 .np-btn-play {
   width: 68px; height: 68px;
