@@ -15,7 +15,7 @@ export function Auth() {
   const { signIn, signUp, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || '/';
+  const from = location.state?.from?.pathname || '/myspace';
 
   const validateForm = () => {
     setErrorMsg('');

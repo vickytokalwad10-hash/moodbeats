@@ -5170,6 +5170,127 @@ function initSupabaseAuthUI() {
         headerUserIcon.parentElement.style.borderColor = 'rgba(168, 85, 247, 0.6)';
         headerUserIcon.parentElement.style.background = 'rgba(168, 85, 247, 0.2)';
       }
+
+      // Load My Space Personal Data
+      try {
+        const [savedSongs, moodHistory, playlists] = await Promise.all([
+          window.MoodSupabase.getSavedSongs(),
+          window.MoodSupabase.getMoodHistory(10),
+          window.MoodSupabase.getPlaylists()
+        ]);
+
+        // 1. Stats
+        const statSongs = document.getElementById('myspace-stat-songs');
+        const statMoods = document.getElementById('myspace-stat-moods');
+        const statPlaylists = document.getElementById('myspace-stat-playlists');
+        const savedBadge = document.getElementById('myspace-saved-badge');
+        const moodBadge = document.getElementById('myspace-mood-badge');
+
+        if (statSongs) statSongs.textContent = savedSongs.length;
+        if (statMoods) statMoods.textContent = moodHistory.length;
+        if (statPlaylists) statPlaylists.textContent = playlists.length;
+        if (savedBadge) savedBadge.textContent = `${savedSongs.length} track${savedSongs.length === 1 ? '' : 's'}`;
+        if (moodBadge) moodBadge.textContent = `${moodHistory.length} scan${moodHistory.length === 1 ? '' : 's'}`;
+
+        // 2. Render Saved Songs
+        const savedListEl = document.getElementById('myspace-saved-list');
+        if (savedListEl) {
+          if (savedSongs.length === 0) {
+            savedListEl.innerHTML = `
+              <div style="padding:14px; background:rgba(255,255,255,0.02); border:1px dashed var(--border-color); border-radius:10px; text-align:center; font-size:12px; color:var(--text-muted);">
+                No songs saved yet — tap the heart on any track to save it here.
+              </div>
+            `;
+          } else {
+            savedListEl.innerHTML = savedSongs.map(s => `
+              <div class="myspace-song-row" style="display:flex; align-items:center; gap:10px; padding:8px 10px; background:rgba(255,255,255,0.03); border-radius:8px; cursor:pointer;" data-track-id="${escapeHtml(s.id)}">
+                <img src="${escapeHtml(s.image)}" style="width:32px; height:32px; border-radius:6px; object-fit:cover;" onerror="this.src='icon.png'">
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:13px; font-weight:600; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(s.title)}</div>
+                  <div style="font-size:11px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(s.artist)}</div>
+                </div>
+                <button class="myspace-play-btn" style="background:rgba(99,102,241,0.2); border:none; color:#a5b4fc; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer;">▶</button>
+              </div>
+            `).join('');
+
+            // Attach play click
+            savedListEl.querySelectorAll('.myspace-song-row').forEach((row, idx) => {
+              row.onclick = () => {
+                const targetSong = savedSongs[idx];
+                if (targetSong) {
+                  saavnPlaySong({
+                    id: targetSong.id,
+                    title: targetSong.title,
+                    artist: targetSong.artist,
+                    image: targetSong.image,
+                    downloadUrl: targetSong.downloadUrl,
+                    streamUrl: targetSong.downloadUrl
+                  });
+                  if (authModal) authModal.style.display = 'none';
+                }
+              };
+            });
+          }
+        }
+
+        // 3. Render Mood Timeline
+        const moodListEl = document.getElementById('myspace-mood-timeline');
+        if (moodListEl) {
+          if (moodHistory.length === 0) {
+            moodListEl.innerHTML = `
+              <div style="padding:14px; background:rgba(255,255,255,0.02); border:1px dashed var(--border-color); border-radius:10px; text-align:center; font-size:12px; color:var(--text-muted);">
+                No mood history recorded yet — take a mood scan on the home screen to discover music matching your vibe!
+              </div>
+            `;
+          } else {
+            const getEmoji = (m) => {
+              const str = (m || '').toLowerCase();
+              if (str.includes('happy') || str.includes('joy')) return '😄';
+              if (str.includes('sad')) return '😢';
+              if (str.includes('energetic') || str.includes('party')) return '⚡';
+              if (str.includes('calm') || str.includes('chill')) return '🧘';
+              if (str.includes('focus') || str.includes('study')) return '🎯';
+              if (str.includes('romantic') || str.includes('love')) return '💖';
+              return '✨';
+            };
+
+            moodListEl.innerHTML = moodHistory.map(m => `
+              <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; background:rgba(255,255,255,0.03); border-radius:8px;">
+                <span style="font-size:20px;">${getEmoji(m.detected_mood)}</span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:13px; font-weight:600; color:#fff;">${escapeHtml(m.detected_mood)}</div>
+                  <div style="font-size:10px; color:var(--text-muted);">${new Date(m.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} • ${m.source === 'face_scan' ? 'Face Scan' : 'Manual'}</div>
+                </div>
+                <span style="font-size:10px; background:rgba(34,197,94,0.15); color:#4ade80; padding:2px 6px; border-radius:4px; font-weight:600;">${Math.round(m.confidence || 85)}%</span>
+              </div>
+            `).join('');
+          }
+        }
+
+        // 4. Render Playlists
+        const playlistListEl = document.getElementById('myspace-playlist-list');
+        if (playlistListEl) {
+          if (playlists.length === 0) {
+            playlistListEl.innerHTML = `
+              <div style="padding:14px; background:rgba(255,255,255,0.02); border:1px dashed var(--border-color); border-radius:10px; text-align:center; font-size:12px; color:var(--text-muted);">
+                No custom playlists created yet — tap "+ Create" above to build your first soundscape collection!
+              </div>
+            `;
+          } else {
+            playlistListEl.innerHTML = playlists.map(p => `
+              <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; background:rgba(255,255,255,0.03); border-radius:8px;">
+                <span style="font-size:16px;">🎵</span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:13px; font-weight:600; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(p.playlist_name)}</div>
+                  <div style="font-size:10px; color:var(--text-muted);">Created ${new Date(p.created_at).toLocaleDateString()}</div>
+                </div>
+              </div>
+            `).join('');
+          }
+        }
+      } catch (spaceErr) {
+        console.warn('[My Space] Error loading personal data:', spaceErr);
+      }
     } else {
       if (loggedOutSection) loggedOutSection.style.display = 'block';
       if (loggedInSection) loggedInSection.style.display = 'none';
@@ -5180,6 +5301,23 @@ function initSupabaseAuthUI() {
       }
     }
   };
+
+  // Create Playlist Button
+  const btnNewPlaylist = document.getElementById('btn-myspace-new-playlist');
+  if (btnNewPlaylist) {
+    btnNewPlaylist.onclick = async () => {
+      const name = prompt('Enter a name for your new playlist:');
+      if (name && name.trim()) {
+        try {
+          await window.MoodSupabase.createPlaylist(name.trim());
+          showToast(`Playlist "${name.trim()}" created! 📂`);
+          updateAuthUI();
+        } catch(e) {
+          showToast('Failed to create playlist');
+        }
+      }
+    };
+  }
 
   // Open / Close Modal
   if (btnAuthTrigger) {

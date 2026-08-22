@@ -1258,25 +1258,78 @@
           </form>
         </div>
 
-        <!-- Logged In View: User Profile & Sync -->
-        <div id="auth-logged-in-section" style="display:none; margin-top:16px;">
+        <!-- Logged In View: "My Space" Personal Data Hub -->
+        <div id="auth-logged-in-section" style="display:none; margin-top:12px; max-height:75vh; overflow-y:auto; padding-right:4px;">
+          <!-- Profile Card -->
           <div style="display:flex; align-items:center; gap:14px; padding:14px; background:rgba(255,255,255,0.05); border-radius:14px; border:1px solid var(--border-color);">
-            <div id="user-avatar-circle" style="width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg,#a855f7,#ec4899); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px; color:#fff;">U</div>
+            <div id="user-avatar-circle" style="width:48px; height:48px; border-radius:50%; background:linear-gradient(135deg,#a855f7,#6366f1); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px; color:#fff; flex-shrink:0;">U</div>
             <div style="flex:1; min-width:0;">
-              <div id="user-profile-name" style="font-weight:700; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">User</div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <div id="user-profile-name" style="font-weight:700; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">User</div>
+                <span style="font-size:10px; background:rgba(99,102,241,0.25); color:#a5b4fc; padding:2px 6px; border-radius:6px; font-weight:700;">MY SPACE</span>
+              </div>
               <div id="user-profile-email" style="font-size:12px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">user@example.com</div>
-              <span style="display:inline-block; font-size:10px; color:#10b981; font-weight:600; margin-top:4px;">● Supabase Cloud Synced</span>
+              <span style="display:inline-block; font-size:10px; color:#10b981; font-weight:600; margin-top:2px;">● Supabase Cloud Secured</span>
+            </div>
+            <button id="btn-auth-signout" class="btn-icon" title="Sign Out" style="color:#ef4444; background:rgba(239,68,68,0.1); border-radius:8px; padding:6px;">
+              <i data-lucide="log-out" style="width:16px;height:16px;"></i>
+            </button>
+          </div>
+
+          <!-- Stats Grid -->
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:14px 0 10px;">
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:10px; padding:10px; text-align:center;">
+              <div id="myspace-stat-songs" style="font-size:18px; font-weight:700; color:#fff;">0</div>
+              <div style="font-size:11px; color:var(--text-muted);">Saved</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:10px; padding:10px; text-align:center;">
+              <div id="myspace-stat-moods" style="font-size:18px; font-weight:700; color:#fff;">0</div>
+              <div style="font-size:11px; color:var(--text-muted);">Scans</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:10px; padding:10px; text-align:center;">
+              <div id="myspace-stat-playlists" style="font-size:18px; font-weight:700; color:#fff;">0</div>
+              <div style="font-size:11px; color:var(--text-muted);">Playlists</div>
             </div>
           </div>
 
-          <div style="display:flex; flex-direction:column; gap:8px; margin-top:16px;">
-            <button id="btn-sync-cloud" class="btn btn-secondary" style="width:100%; font-size:13px;">
+          <!-- Section 1: Recently Saved Songs -->
+          <div style="margin-top:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-size:13px; font-weight:700; color:#fff;">❤️ Saved Songs</span>
+              <span id="myspace-saved-badge" style="font-size:11px; color:var(--text-muted);">0 tracks</span>
+            </div>
+            <div id="myspace-saved-list" style="display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto;">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Section 2: Mood Timeline -->
+          <div style="margin-top:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-size:13px; font-weight:700; color:#fff;">🎭 Mood Timeline</span>
+              <span id="myspace-mood-badge" style="font-size:11px; color:var(--text-muted);">0 scans</span>
+            </div>
+            <div id="myspace-mood-timeline" style="display:flex; flex-direction:column; gap:6px; max-height:140px; overflow-y:auto;">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Section 3: Custom Playlists -->
+          <div style="margin-top:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-size:13px; font-weight:700; color:#fff;">📂 Custom Playlists</span>
+              <button id="btn-myspace-new-playlist" style="font-size:11px; color:#a5b4fc; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:6px; padding:2px 8px; cursor:pointer;">+ Create</button>
+            </div>
+            <div id="myspace-playlist-list" style="display:flex; flex-direction:column; gap:6px; max-height:120px; overflow-y:auto;">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Cloud Sync Actions -->
+          <div style="display:flex; flex-direction:column; gap:8px; margin-top:16px; padding-top:12px; border-top:1px solid var(--border-color);">
+            <button id="btn-sync-cloud" class="btn btn-secondary" style="width:100%; font-size:12px; padding:8px 12px;">
               <i data-lucide="refresh-cw"></i>
-              <span>Sync Favorites & History Now</span>
-            </button>
-            <button id="btn-auth-signout" class="btn btn-secondary" style="width:100%; color:#ef4444; border-color:rgba(239,68,68,0.3); font-size:13px;">
-              <i data-lucide="log-out"></i>
-              <span>Sign Out</span>
+              <span>Refresh My Space Cloud Sync</span>
             </button>
           </div>
         </div>

@@ -1,33 +1,31 @@
 -- ============================================================================
 -- MoodBeats — Supabase PostgreSQL Database Schema
 -- ============================================================================
--- AI-Powered Mood Music Player Database Schema
--- Includes Profiles, Mood History, User Playlists, Tracks, Liked Songs, & RLS
+-- Personal Data Space ("My Space") & Multi-User Cloud Architecture
+-- Tables: user_saved_songs, user_mood_history, user_playlists, user_playlist_tracks, user_settings, profiles
+-- Strictly isolated via PostgreSQL Row Level Security (RLS)
 -- ============================================================================
 
 -- Enable UUID extension
 create extension if not exists "uuid-ossp";
 
 -- ============================================================================
--- 1. PROFILES TABLE
+-- 1. USER PROFILES TABLE
 -- ============================================================================
 create table if not exists public.profiles (
-  id uuid references auth.users on delete cascade primary key,
+  id uuid references auth.users(id) on delete cascade primary key,
   email text unique,
   full_name text,
   avatar_url text,
-  preferred_language text default 'Hindi',
-  streaming_quality text default '320kbps',
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
 );
 
--- RLS: Profiles
 alter table public.profiles enable row level security;
 
-create policy "Public profiles are viewable by everyone"
+create policy "Users can view their own profile"
   on public.profiles for select
-  using (true);
+  using (auth.uid() = id);
 
 create policy "Users can insert their own profile"
   on public.profiles for insert
@@ -37,10 +35,11 @@ create policy "Users can update their own profile"
   on public.profiles for update
   using (auth.uid() = id);
 
--- Trigger: Automatically create profile on signup
+-- Trigger: Automatically provision profile & settings on signup
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
+  -- 1. Insert Profile
   insert into public.profiles (id, email, full_name, avatar_url)
   values (
     new.id,
@@ -51,6 +50,17 @@ begin
   on conflict (id) do update
   set email = excluded.email,
       full_name = coalesce(excluded.full_name, profiles.full_name);
+
+  -- 2. Insert Default User Settings
+  insert into public.user_settings (user_id, preferred_language, favorite_genres, theme_preference)
+  values (
+    new.id,
+    'Hindi',
+    array['Bollywood', 'Pop', 'Lo-Fi', 'Sufi'],
+    'dark'
+  )
+  on conflict (user_id) do nothing;
+
   return new;
 end;
 $$ language plpgsql security definer;
@@ -62,201 +72,179 @@ create trigger on_auth_user_created
 
 
 -- ============================================================================
--- 2. MOOD SCANS & HISTORY TABLE
+-- 2. USER SAVED / LIKED SONGS (`user_saved_songs`)
 -- ============================================================================
-create table if not exists public.mood_scans (
+create table if not exists public.user_saved_songs (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users on delete cascade not null,
-  mood text not null,
-  confidence numeric(5, 2) not null,
-  scan_mode text default 'camera' not null, -- 'camera' | 'text' | 'soundscape'
-  detected_expressions jsonb default '{}'::jsonb,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  track_id text not null,
+  track_name text not null,
+  artist text not null,
+  mood_tag text default 'General',
+  image_url text,
+  stream_url text,
+  saved_at timestamptz default now() not null,
+  constraint unique_user_track unique(user_id, track_id)
+);
+
+create index if not exists idx_saved_songs_user on public.user_saved_songs(user_id, saved_at desc);
+
+-- RLS: user_saved_songs
+alter table public.user_saved_songs enable row level security;
+
+create policy "Users can select their own saved songs"
+  on public.user_saved_songs for select
+  using (auth.uid() = user_id);
+
+create policy "Users can insert their own saved songs"
+  on public.user_saved_songs for insert
+  with check (auth.uid() = user_id);
+
+create policy "Users can update their own saved songs"
+  on public.user_saved_songs for update
+  using (auth.uid() = user_id);
+
+create policy "Users can delete their own saved songs"
+  on public.user_saved_songs for delete
+  using (auth.uid() = user_id);
+
+
+-- ============================================================================
+-- 3. USER MOOD HISTORY (`user_mood_history`)
+-- ============================================================================
+create table if not exists public.user_mood_history (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  detected_mood text not null,
+  source text default 'face_scan' not null, -- 'face_scan' | 'manual' | 'soundscape'
+  confidence numeric(5, 2) default 85.00,
   created_at timestamptz default now() not null
 );
 
--- Index for fast user scan lookups
-create index if not exists idx_mood_scans_user_id on public.mood_scans(user_id, created_at desc);
+create index if not exists idx_mood_history_user on public.user_mood_history(user_id, created_at desc);
 
--- RLS: Mood Scans
-alter table public.mood_scans enable row level security;
+-- RLS: user_mood_history
+alter table public.user_mood_history enable row level security;
 
 create policy "Users can view their own mood history"
-  on public.mood_scans for select
+  on public.user_mood_history for select
   using (auth.uid() = user_id);
 
-create policy "Users can insert their own mood scans"
-  on public.mood_scans for insert
+create policy "Users can insert their own mood entries"
+  on public.user_mood_history for insert
   with check (auth.uid() = user_id);
 
-create policy "Users can delete their own mood history"
-  on public.mood_scans for delete
+create policy "Users can delete their own mood entries"
+  on public.user_mood_history for delete
   using (auth.uid() = user_id);
 
 
 -- ============================================================================
--- 3. CUSTOM PLAYLISTS TABLE
+-- 4. USER PLAYLISTS (`user_playlists`)
 -- ============================================================================
-create table if not exists public.playlists (
+create table if not exists public.user_playlists (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users on delete cascade not null,
-  name text not null,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  playlist_name text not null,
   description text,
-  mood text,
-  is_public boolean default false not null,
   cover_url text,
-  created_at timestamptz default now() not null,
-  updated_at timestamptz default now() not null
+  created_at timestamptz default now() not null
 );
 
-create index if not exists idx_playlists_user_id on public.playlists(user_id);
+create index if not exists idx_user_playlists_user on public.user_playlists(user_id);
 
--- RLS: Playlists
-alter table public.playlists enable row level security;
+-- RLS: user_playlists
+alter table public.user_playlists enable row level security;
 
-create policy "Playlists viewable by creator or if public"
-  on public.playlists for select
-  using (auth.uid() = user_id or is_public = true);
+create policy "Users can view their own playlists"
+  on public.user_playlists for select
+  using (auth.uid() = user_id);
 
 create policy "Users can create their own playlists"
-  on public.playlists for insert
+  on public.user_playlists for insert
   with check (auth.uid() = user_id);
 
 create policy "Users can update their own playlists"
-  on public.playlists for update
+  on public.user_playlists for update
   using (auth.uid() = user_id);
 
 create policy "Users can delete their own playlists"
-  on public.playlists for delete
+  on public.user_playlists for delete
   using (auth.uid() = user_id);
 
 
 -- ============================================================================
--- 4. PLAYLIST TRACKS TABLE
+-- 5. USER PLAYLIST TRACKS (`user_playlist_tracks`)
 -- ============================================================================
-create table if not exists public.playlist_tracks (
+create table if not exists public.user_playlist_tracks (
   id uuid primary key default gen_random_uuid(),
-  playlist_id uuid references public.playlists on delete cascade not null,
-  song_id text not null,
-  title text not null,
+  playlist_id uuid references public.user_playlists(id) on delete cascade not null,
+  track_id text not null,
+  track_name text not null,
   artist text not null,
-  album text,
-  duration integer default 0,
   image_url text,
-  download_url text,
-  position integer default 0 not null,
+  stream_url text,
   added_at timestamptz default now() not null
 );
 
-create index if not exists idx_playlist_tracks_playlist on public.playlist_tracks(playlist_id, position asc);
+create index if not exists idx_playlist_tracks_pid on public.user_playlist_tracks(playlist_id, added_at desc);
 
--- RLS: Playlist Tracks
-alter table public.playlist_tracks enable row level security;
+-- RLS: user_playlist_tracks (Scoped by playlist ownership)
+alter table public.user_playlist_tracks enable row level security;
 
-create policy "Tracks viewable if user has access to playlist"
-  on public.playlist_tracks for select
+create policy "Users can view tracks from their own playlists"
+  on public.user_playlist_tracks for select
   using (
     exists (
-      select 1 from public.playlists p
-      where p.id = playlist_tracks.playlist_id
-      and (p.user_id = auth.uid() or p.is_public = true)
+      select 1 from public.user_playlists p
+      where p.id = user_playlist_tracks.playlist_id
+      and p.user_id = auth.uid()
     )
   );
 
-create policy "Users can insert tracks to their own playlists"
-  on public.playlist_tracks for insert
+create policy "Users can add tracks to their own playlists"
+  on public.user_playlist_tracks for insert
   with check (
     exists (
-      select 1 from public.playlists p
-      where p.id = playlist_tracks.playlist_id
+      select 1 from public.user_playlists p
+      where p.id = user_playlist_tracks.playlist_id
       and p.user_id = auth.uid()
     )
   );
 
-create policy "Users can update tracks in their own playlists"
-  on public.playlist_tracks for update
+create policy "Users can remove tracks from their own playlists"
+  on public.user_playlist_tracks for delete
   using (
     exists (
-      select 1 from public.playlists p
-      where p.id = playlist_tracks.playlist_id
-      and p.user_id = auth.uid()
-    )
-  );
-
-create policy "Users can delete tracks from their own playlists"
-  on public.playlist_tracks for delete
-  using (
-    exists (
-      select 1 from public.playlists p
-      where p.id = playlist_tracks.playlist_id
+      select 1 from public.user_playlists p
+      where p.id = user_playlist_tracks.playlist_id
       and p.user_id = auth.uid()
     )
   );
 
 
 -- ============================================================================
--- 5. LIKED SONGS & FAVORITES TABLE
+-- 6. USER SETTINGS & PREFERENCES (`user_settings`)
 -- ============================================================================
-create table if not exists public.liked_songs (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users on delete cascade not null,
-  song_id text not null,
-  title text not null,
-  artist text not null,
-  album text,
-  duration integer default 0,
-  image_url text,
-  download_url text,
-  liked_at timestamptz default now() not null,
-  constraint unique_user_song unique(user_id, song_id)
+create table if not exists public.user_settings (
+  user_id uuid references auth.users(id) on delete cascade primary key,
+  preferred_language text default 'Hindi' not null,
+  favorite_genres text[] default array['Bollywood', 'Pop', 'Lo-Fi', 'Sufi'] not null,
+  theme_preference text default 'dark' not null,
+  updated_at timestamptz default now() not null
 );
 
-create index if not exists idx_liked_songs_user on public.liked_songs(user_id, liked_at desc);
+-- RLS: user_settings
+alter table public.user_settings enable row level security;
 
--- RLS: Liked Songs
-alter table public.liked_songs enable row level security;
-
-create policy "Users can view their own liked songs"
-  on public.liked_songs for select
+create policy "Users can view their own settings"
+  on public.user_settings for select
   using (auth.uid() = user_id);
 
-create policy "Users can add liked songs"
-  on public.liked_songs for insert
+create policy "Users can insert their own settings"
+  on public.user_settings for insert
   with check (auth.uid() = user_id);
 
-create policy "Users can remove liked songs"
-  on public.liked_songs for delete
-  using (auth.uid() = user_id);
-
-
--- ============================================================================
--- 6. RECENTLY PLAYED TABLE
--- ============================================================================
-create table if not exists public.recently_played (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users on delete cascade not null,
-  song_id text not null,
-  title text not null,
-  artist text not null,
-  album text,
-  duration integer default 0,
-  image_url text,
-  download_url text,
-  played_at timestamptz default now() not null
-);
-
-create index if not exists idx_recently_played_user on public.recently_played(user_id, played_at desc);
-
--- RLS: Recently Played
-alter table public.recently_played enable row level security;
-
-create policy "Users can view their own recently played history"
-  on public.recently_played for select
-  using (auth.uid() = user_id);
-
-create policy "Users can record recently played tracks"
-  on public.recently_played for insert
-  with check (auth.uid() = user_id);
-
-create policy "Users can clear their recently played history"
-  on public.recently_played for delete
+create policy "Users can update their own settings"
+  on public.user_settings for update
   using (auth.uid() = user_id);

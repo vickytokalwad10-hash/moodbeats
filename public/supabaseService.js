@@ -1,6 +1,6 @@
 /**
  * MoodBeats — Supabase Web & Mobile Client Integration
- * Handles Authentication, Session Management, Cloud Profile, Liked Songs & Mood History Sync
+ * Handles Authentication, Session Management, Cloud Profile, "My Space" User Data Space & RLS
  */
 
 const DEFAULT_SUPABASE_URL = 'https://xyzcompany.supabase.co';
@@ -51,8 +51,14 @@ window.MoodSupabase = {
   },
 
   async getUser() {
-    const session = await this.getSession();
-    return session?.user || null;
+    const client = getSupabase();
+    if (!client) return null;
+    try {
+      const { data: { user } } = await client.auth.getUser();
+      return user || null;
+    } catch (e) {
+      return null;
+    }
   },
 
   async signInWithEmail(email, password) {
@@ -100,79 +106,210 @@ window.MoodSupabase = {
     if (error) throw error;
   },
 
-  // 2. Cloud Database Syncing
-  async syncMoodScan(mood, confidence, scanMode = 'camera') {
-    const client = getSupabase();
-    const user = await this.getUser();
-    if (!client || !user) return null;
+  // 2. "My Space" User-Scoped Data Functions (Protected by RLS)
 
-    try {
-      const { data, error } = await client.from('mood_scans').insert({
-        user_id: user.id,
-        mood,
-        confidence: Number(confidence) || 0,
-        scan_mode: scanMode,
-      });
-      if (error) console.warn('[Supabase] syncMoodScan error:', error.message);
-      return data;
-    } catch (e) {
-      console.warn('[Supabase] syncMoodScan error:', e);
-    }
-  },
-
-  async syncLikedSong(song, isLiked) {
-    const client = getSupabase();
-    const user = await this.getUser();
-    if (!client || !user || !song) return;
-
-    try {
-      if (isLiked) {
-        await client.from('liked_songs').upsert({
-          user_id: user.id,
-          song_id: String(song.id || song.title),
-          title: song.title,
-          artist: song.artist,
-          album: song.album || '',
-          duration: song.duration || 0,
-          image_url: song.image || '',
-          download_url: song.downloadUrl || '',
-        });
-      } else {
-        await client.from('liked_songs').delete().match({
-          user_id: user.id,
-          song_id: String(song.id || song.title),
-        });
-      }
-    } catch (e) {
-      console.warn('[Supabase] syncLikedSong error:', e);
-    }
-  },
-
-  async fetchCloudLikedSongs() {
+  // Saved Songs
+  async getSavedSongs() {
     const client = getSupabase();
     const user = await this.getUser();
     if (!client || !user) return [];
 
     try {
       const { data, error } = await client
-        .from('liked_songs')
+        .from('user_saved_songs')
         .select('*')
-        .order('liked_at', { ascending: false });
+        .eq('user_id', user.id)
+        .order('saved_at', { ascending: false });
+
       if (error) throw error;
-      return (data || []).map(row => ({
-        id: row.song_id,
-        title: row.title,
-        artist: row.artist,
-        album: row.album,
-        duration: row.duration,
-        image: row.image_url,
-        downloadUrl: row.download_url,
+      return (data || []).map(r => ({
+        id: r.track_id,
+        title: r.track_name,
+        artist: r.artist,
+        mood: r.mood_tag,
+        image: r.image_url || 'icon.png',
+        downloadUrl: r.stream_url,
+        savedAt: r.saved_at
       }));
     } catch (e) {
-      console.warn('[Supabase] fetchCloudLikedSongs error:', e);
+      console.warn('[Supabase] getSavedSongs error:', e.message);
       return [];
     }
   },
+
+  async saveSong(track) {
+    const client = getSupabase();
+    const user = await this.getUser();
+    if (!client || !user || !track) return null;
+
+    try {
+      const { data, error } = await client.from('user_saved_songs').upsert({
+        user_id: user.id,
+        track_id: String(track.id || track.track_id),
+        track_name: track.title || track.name || 'Unknown Track',
+        artist: track.artist || track.primaryArtists || 'Unknown Artist',
+        mood_tag: track.mood || track.mood_tag || 'General',
+        image_url: track.image || track.image_url || 'icon.png',
+        stream_url: track.downloadUrl || track.streamUrl || '',
+        saved_at: new Date().toISOString()
+      }, { onConflict: 'user_id, track_id' }).select().single();
+
+      if (error) throw error;
+      return data;
+    } catch (e) {
+      console.warn('[Supabase] saveSong error:', e.message);
+      return null;
+    }
+  },
+
+  async removeSavedSong(trackId) {
+    const client = getSupabase();
+    const user = await this.getUser();
+    if (!client || !user) return;
+
+    try {
+      await client.from('user_saved_songs').delete().match({
+        user_id: user.id,
+        track_id: String(trackId)
+      });
+    } catch (e) {
+      console.warn('[Supabase] removeSavedSong error:', e.message);
+    }
+  },
+
+  // Mood History
+  async logMood(mood, source = 'face_scan', confidence = 85) {
+    const client = getSupabase();
+    const user = await this.getUser();
+    if (!client || !user) return null;
+
+    try {
+      const { data, error } = await client.from('user_mood_history').insert({
+        user_id: user.id,
+        detected_mood: mood,
+        source: source,
+        confidence: Number(confidence) || 85,
+        created_at: new Date().toISOString()
+      }).select().single();
+
+      if (error) throw error;
+      return data;
+    } catch (e) {
+      console.warn('[Supabase] logMood error:', e.message);
+      return null;
+    }
+  },
+
+  async getMoodHistory(limit = 15) {
+    const client = getSupabase();
+    const user = await this.getUser();
+    if (!client || !user) return [];
+
+    try {
+      const { data, error } = await client
+        .from('user_mood_history')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      console.warn('[Supabase] getMoodHistory error:', e.message);
+      return [];
+    }
+  },
+
+  // Playlists
+  async getPlaylists() {
+    const client = getSupabase();
+    const user = await this.getUser();
+    if (!client || !user) return [];
+
+    try {
+      const { data, error } = await client
+        .from('user_playlists')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      console.warn('[Supabase] getPlaylists error:', e.message);
+      return [];
+    }
+  },
+
+  async createPlaylist(name, description = '') {
+    const client = getSupabase();
+    const user = await this.getUser();
+    if (!client || !user || !name) return null;
+
+    try {
+      const { data, error } = await client.from('user_playlists').insert({
+        user_id: user.id,
+        playlist_name: name.trim(),
+        description: description,
+        cover_url: 'icon.png',
+        created_at: new Date().toISOString()
+      }).select().single();
+
+      if (error) throw error;
+      return data;
+    } catch (e) {
+      console.warn('[Supabase] createPlaylist error:', e.message);
+      return null;
+    }
+  },
+
+  // Settings
+  async getUserSettings() {
+    const client = getSupabase();
+    const user = await this.getUser();
+    if (!client || !user) return null;
+
+    try {
+      const { data, error } = await client
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data || {
+        preferred_language: 'Hindi',
+        favorite_genres: ['Bollywood', 'Pop', 'Lo-Fi', 'Sufi'],
+        theme_preference: 'dark'
+      };
+    } catch (e) {
+      console.warn('[Supabase] getUserSettings error:', e.message);
+      return null;
+    }
+  },
+
+  async updateUserSettings(settings) {
+    const client = getSupabase();
+    const user = await this.getUser();
+    if (!client || !user || !settings) return null;
+
+    try {
+      const { data, error } = await client.from('user_settings').upsert({
+        user_id: user.id,
+        preferred_language: settings.preferred_language || 'Hindi',
+        favorite_genres: settings.favorite_genres || ['Bollywood', 'Pop', 'Lo-Fi', 'Sufi'],
+        theme_preference: settings.theme_preference || 'dark',
+        updated_at: new Date().toISOString()
+      }).select().single();
+
+      if (error) throw error;
+      return data;
+    } catch (e) {
+      console.warn('[Supabase] updateUserSettings error:', e.message);
+      return null;
+    }
+  }
 };
 
-console.log('[MoodBeats] Supabase service module loaded.');
+console.log('[MoodBeats] Supabase User Data & Personal Space module loaded.');
