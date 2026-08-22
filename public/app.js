@@ -4740,12 +4740,22 @@ document.addEventListener('DOMContentLoaded', () => {
   // Result control buttons
   document.getElementById('btn-shuffle-playlist').addEventListener('click', shufflePlaylist);
   
-  // Direct Playback controls binding
-  document.getElementById('player-play').addEventListener('click', togglePlayPause);
-  document.getElementById('player-next').addEventListener('click', playNext);
-  document.getElementById('player-prev').addEventListener('click', playPrev);
-  // player-toggle-video removed from HTML (video drawer no longer in mini player)
-  document.getElementById('player-close').addEventListener('click', closePlayer);
+  // Player close / dismiss button
+  const playerCloseBtn = document.getElementById('player-close');
+  if (playerCloseBtn) {
+    playerCloseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.saavnAudio) {
+        state.saavnAudio.pause();
+        state.saavnIsPlaying = false;
+        state.isPlaying = false;
+        updateSaavnPlayerUI(false);
+      }
+      const bar = document.getElementById('player-bar');
+      if (bar) bar.style.display = 'none';
+      document.body.classList.remove('player-active');
+    });
+  }
 
   // Unified Search interactions
   const searchInput = document.getElementById('search-input');

@@ -10,10 +10,14 @@ import { supabase } from './supabaseClient';
  */
 
 /**
- * Helper to retrieve currently authenticated user ID safely.
+ * Helper to retrieve currently authenticated user ID safely and rapidly from active session.
  * Throws an error if no active session is found.
  */
 async function getAuthenticatedUserId() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user?.id) {
+    return session.user.id;
+  }
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) {
     throw new Error('User not authenticated. Please log in to access personal space.');
@@ -32,6 +36,8 @@ export async function getSavedSongs() {
     .select('*')
     .eq('user_id', userId)
     .order('saved_at', { ascending: false });
+
+  console.log('[UserData Raw Response: getSavedSongs]', { count: data?.length, error });
 
   if (error) {
     console.error('[UserData] Error fetching saved songs:', error.message);
@@ -102,6 +108,8 @@ export async function getMoodHistory(limit = 10) {
     .order('created_at', { ascending: false })
     .limit(limit);
 
+  console.log('[UserData Raw Response: getMoodHistory]', { count: data?.length, error });
+
   if (error) {
     console.error('[UserData] Error fetching mood history:', error.message);
     throw error;
@@ -125,6 +133,8 @@ export async function logMood(mood, source = 'face_scan', confidence = 85) {
     .select()
     .single();
 
+  console.log('[UserData Raw Response: logMood]', { data, error });
+
   if (error) {
     console.error('[UserData] Error logging mood:', error.message);
     throw error;
@@ -146,6 +156,8 @@ export async function getPlaylists() {
     `)
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
+
+  console.log('[UserData Raw Response: getPlaylists]', { count: data?.length, error });
 
   if (error) {
     console.error('[UserData] Error fetching playlists:', error.message);
@@ -170,6 +182,8 @@ export async function createPlaylist(playlistName, description = '') {
     .select()
     .single();
 
+  console.log('[UserData Raw Response: createPlaylist]', { data, error });
+
   if (error) {
     console.error('[UserData] Error creating playlist:', error.message);
     throw error;
@@ -184,6 +198,8 @@ export async function getPlaylistTracks(playlistId) {
     .select('*')
     .eq('playlist_id', playlistId)
     .order('added_at', { ascending: false });
+
+  console.log('[UserData Raw Response: getPlaylistTracks]', { playlistId, count: data?.length, error });
 
   if (error) {
     console.error('[UserData] Error fetching playlist tracks:', error.message);
@@ -215,6 +231,8 @@ export async function addTrackToPlaylist(playlistId, track) {
     .select()
     .single();
 
+  console.log('[UserData Raw Response: addTrackToPlaylist]', { data, error });
+
   if (error) {
     console.error('[UserData] Error adding track to playlist:', error.message);
     throw error;
@@ -229,6 +247,8 @@ export async function removeTrackFromPlaylist(playlistId, trackId) {
     .eq('playlist_id', playlistId)
     .eq('track_id', String(trackId))
     .select();
+
+  console.log('[UserData Raw Response: removeTrackFromPlaylist]', { data, error });
 
   if (error) {
     console.error('[UserData] Error removing track from playlist:', error.message);
@@ -248,6 +268,8 @@ export async function getUserSettings() {
     .select('*')
     .eq('user_id', userId)
     .maybeSingle();
+
+  console.log('[UserData Raw Response: getUserSettings]', { data, error });
 
   if (error) {
     console.error('[UserData] Error fetching user settings:', error.message);
@@ -276,6 +298,8 @@ export async function updateUserSettings(settings) {
     })
     .select()
     .single();
+
+  console.log('[UserData Raw Response: updateUserSettings]', { data, error });
 
   if (error) {
     console.error('[UserData] Error updating user settings:', error.message);
