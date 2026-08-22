@@ -280,11 +280,11 @@
               </div>
               
               <!-- Placeholder / Access Request Overlay with Scanner Skeleton -->
-              <div class="camera-overlay-state active" id="camera-loading-overlay" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:20px; z-index:30;">
+              <div class="camera-overlay-state active" id="camera-loading-overlay" style="z-index:30;">
                 <div class="skeleton-pulse" style="width:72px; height:72px; border-radius:50%; background:rgba(29,185,84,0.15); border:2px dashed rgba(29,185,84,0.5); display:flex; align-items:center; justify-content:center; font-size:28px;">
                   📷
                 </div>
-                <div class="skeleton-shimmer" style="width:180px; height:14px; border-radius:6px;"></div>
+                <div class="skeleton-shimmer" style="width:180px; height:14px; border-radius:6px; margin:8px 0;"></div>
                 <p id="camera-loading-text" style="font-size:12px; color:var(--text-muted); margin:0;">Initializing AI face detection model...</p>
               </div>
 

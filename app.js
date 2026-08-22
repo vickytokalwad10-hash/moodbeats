@@ -1991,7 +1991,9 @@ async function startWebcamFlow() {
 
   // Reset UI
   loadingOverlay.classList.add('active');
+  loadingOverlay.style.display = 'flex';
   fallbackOverlay.classList.remove('active');
+  fallbackOverlay.style.display = 'none';
   captureBtn.disabled = true;
   if (loadingText) loadingText.innerText = 'Opening camera...';
 
@@ -2008,7 +2010,9 @@ async function startWebcamFlow() {
   // On Android WebView it can be undefined if served over HTTP or in older versions
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     loadingOverlay.classList.remove('active');
+    loadingOverlay.style.display = 'none';
     fallbackOverlay.classList.add('active');
+    fallbackOverlay.style.display = 'flex';
     if (errorTitle) errorTitle.innerText = 'Camera API Not Available';
     if (errorMsg)   errorMsg.innerText   = 'Your browser/device does not support camera access. This may be an Android WebView restriction. Try enabling camera in the app settings or use Text Mood input instead.';
     return;
@@ -2063,7 +2067,9 @@ async function startWebcamFlow() {
     if (!stream) {
       console.error('[MoodBeats] Camera error:', error.name, error.message);
       loadingOverlay.classList.remove('active');
+      loadingOverlay.style.display = 'none';
       fallbackOverlay.classList.add('active');
+      fallbackOverlay.style.display = 'flex';
 
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
         if (errorTitle) errorTitle.innerText = 'Camera Permission Denied';
@@ -2118,8 +2124,11 @@ async function startWebcamFlow() {
 
   const modelSuccess = await loadFaceModels();
 
-  // Once models are ready, hide the loading overlay
+  // Once models are ready, hide the loading overlay completely
   loadingOverlay.classList.remove('active');
+  loadingOverlay.style.display = 'none';
+  fallbackOverlay.classList.remove('active');
+  fallbackOverlay.style.display = 'none';
 
   if (!modelSuccess) {
     // Camera is open but models failed — still allow simulation
@@ -2140,11 +2149,14 @@ function setupSimulationOverlay() {
   const loadingOverlay = document.getElementById('camera-loading-overlay');
   const captureBtn = document.getElementById('btn-capture-scan');
   
-  loadingOverlay.classList.remove('active');
-  captureBtn.disabled = false;
+  if (loadingOverlay) {
+    loadingOverlay.classList.remove('active');
+    loadingOverlay.style.display = 'none';
+  }
+  if (captureBtn) captureBtn.disabled = false;
   
   const video = document.getElementById('webcam-video');
-  video.srcObject = null;
+  if (video) video.srcObject = null;
 }
 
 function stopWebcam() {
