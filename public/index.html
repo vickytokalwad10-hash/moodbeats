@@ -59,6 +59,24 @@
   <script src="lucide.min.js"></script>
 </head>
 <body>
+  <!-- App Cold Boot Skeleton Loading Screen -->
+  <div id="app-boot-skeleton" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#0c0f17; z-index:99999; display:flex; flex-direction:column; align-items:center; justify-content:center; transition:opacity 0.4s ease-out;">
+    <div class="skeleton-pulse" style="text-align:center; margin-bottom:24px;">
+      <div style="width:76px; height:76px; border-radius:22px; background:linear-gradient(135deg, rgba(99,102,241,0.25), rgba(168,85,247,0.25)); border:1px solid rgba(255,255,255,0.12); display:flex; align-items:center; justify-content:center; font-size:36px; margin:0 auto 16px; box-shadow:0 12px 32px rgba(99,102,241,0.25);">
+        🎵
+      </div>
+    </div>
+    <div class="skeleton-shimmer" style="width:140px; height:22px; border-radius:6px; margin-bottom:10px;"></div>
+    <div class="skeleton-shimmer" style="width:200px; height:12px; border-radius:4px; margin-bottom:32px;"></div>
+    <div style="width:85%; max-width:320px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:14px; padding:16px; display:flex; align-items:center; gap:12px;">
+      <div class="skeleton-shimmer" style="width:40px; height:40px; border-radius:50%; flex-shrink:0;"></div>
+      <div style="flex:1;">
+        <div class="skeleton-shimmer" style="width:60%; height:14px; border-radius:4px; margin-bottom:6px;"></div>
+        <div class="skeleton-shimmer" style="width:40%; height:10px; border-radius:4px;"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Dynamic background blobs -->
   <div class="blob-container">
     <div class="blob blob-1"></div>
@@ -211,10 +229,13 @@
               <!-- Scanning Effect overlay -->
               <div class="scan-bar" id="scan-bar"></div>
               
-              <!-- Placeholder / Access Request Overlay -->
-              <div class="camera-overlay-state active" id="camera-loading-overlay">
-                <div class="spinner"></div>
-                <p id="camera-loading-text">Requesting camera access...</p>
+              <!-- Placeholder / Access Request Overlay with Scanner Skeleton -->
+              <div class="camera-overlay-state active" id="camera-loading-overlay" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:20px;">
+                <div class="skeleton-pulse" style="width:72px; height:72px; border-radius:50%; background:rgba(168,85,247,0.15); border:2px dashed rgba(168,85,247,0.4); display:flex; align-items:center; justify-content:center; font-size:28px;">
+                  📷
+                </div>
+                <div class="skeleton-shimmer" style="width:180px; height:14px; border-radius:6px;"></div>
+                <p id="camera-loading-text" style="font-size:12px; color:var(--text-muted); margin:0;">Initializing AI face detection model...</p>
               </div>
 
               <!-- Fallback View (denied/no camera) -->
@@ -357,10 +378,63 @@
           <button class="filter-pill" data-filter="playlists">Playlists</button>
         </div>
 
-        <!-- Global Search Loading State -->
-        <div id="search-loading-state" style="display:none; flex-direction:column; align-items:center; justify-content:center; padding:40px; gap:12px;">
-          <div class="spinner" style="width:32px;height:32px;border-width:3px;border-top-color:var(--accent-color);"></div>
-          <span style="color:var(--text-muted);font-size:13px;">Searching songs & artists...</span>
+        <!-- Global Search Skeleton Loading State -->
+        <div id="search-loading-state" style="display:none; flex-direction:column; gap:16px; padding:16px 0;">
+          <!-- Top Artists Bubble Skeleton -->
+          <div style="display:flex; gap:16px; overflow-x:hidden; padding:4px 0;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+              <div class="skeleton-shimmer" style="width:68px; height:68px; border-radius:50%;"></div>
+              <div class="skeleton-shimmer" style="width:52px; height:10px; border-radius:4px;"></div>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+              <div class="skeleton-shimmer" style="width:68px; height:68px; border-radius:50%;"></div>
+              <div class="skeleton-shimmer" style="width:60px; height:10px; border-radius:4px;"></div>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+              <div class="skeleton-shimmer" style="width:68px; height:68px; border-radius:50%;"></div>
+              <div class="skeleton-shimmer" style="width:48px; height:10px; border-radius:4px;"></div>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+              <div class="skeleton-shimmer" style="width:68px; height:68px; border-radius:50%;"></div>
+              <div class="skeleton-shimmer" style="width:56px; height:10px; border-radius:4px;"></div>
+            </div>
+          </div>
+
+          <!-- Track Rows Skeletons -->
+          <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
+            <div class="skeleton-track-row">
+              <div class="skeleton-shimmer" style="width:48px; height:48px; border-radius:8px; flex-shrink:0;"></div>
+              <div style="flex:1; min-width:0;">
+                <div class="skeleton-shimmer" style="width:60%; height:14px; border-radius:4px; margin-bottom:6px;"></div>
+                <div class="skeleton-shimmer" style="width:40%; height:11px; border-radius:4px;"></div>
+              </div>
+              <div class="skeleton-shimmer" style="width:36px; height:12px; border-radius:4px;"></div>
+            </div>
+            <div class="skeleton-track-row">
+              <div class="skeleton-shimmer" style="width:48px; height:48px; border-radius:8px; flex-shrink:0;"></div>
+              <div style="flex:1; min-width:0;">
+                <div class="skeleton-shimmer" style="width:50%; height:14px; border-radius:4px; margin-bottom:6px;"></div>
+                <div class="skeleton-shimmer" style="width:30%; height:11px; border-radius:4px;"></div>
+              </div>
+              <div class="skeleton-shimmer" style="width:36px; height:12px; border-radius:4px;"></div>
+            </div>
+            <div class="skeleton-track-row">
+              <div class="skeleton-shimmer" style="width:48px; height:48px; border-radius:8px; flex-shrink:0;"></div>
+              <div style="flex:1; min-width:0;">
+                <div class="skeleton-shimmer" style="width:70%; height:14px; border-radius:4px; margin-bottom:6px;"></div>
+                <div class="skeleton-shimmer" style="width:45%; height:11px; border-radius:4px;"></div>
+              </div>
+              <div class="skeleton-shimmer" style="width:36px; height:12px; border-radius:4px;"></div>
+            </div>
+            <div class="skeleton-track-row">
+              <div class="skeleton-shimmer" style="width:48px; height:48px; border-radius:8px; flex-shrink:0;"></div>
+              <div style="flex:1; min-width:0;">
+                <div class="skeleton-shimmer" style="width:55%; height:14px; border-radius:4px; margin-bottom:6px;"></div>
+                <div class="skeleton-shimmer" style="width:35%; height:11px; border-radius:4px;"></div>
+              </div>
+              <div class="skeleton-shimmer" style="width:36px; height:12px; border-radius:4px;"></div>
+            </div>
+          </div>
         </div>
 
         <!-- Initial Search Empty State -->

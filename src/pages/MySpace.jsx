@@ -9,6 +9,13 @@ import {
   getUserSettings,
   updateUserSettings
 } from '../lib/userData';
+import {
+  MySpaceSkeleton,
+  PlaylistSkeleton,
+  SkeletonBox,
+  SkeletonCircle,
+  SkeletonText
+} from '../components/skeletons';
 
 export default function MySpace() {
   const { user, profile, signOut } = useAuth();
@@ -23,36 +30,66 @@ export default function MySpace() {
     theme_preference: 'dark'
   });
 
-  const [loading, setLoading] = useState(true);
+  const [loadingSongs, setLoadingSongs] = useState(true);
+  const [loadingMoods, setLoadingMoods] = useState(true);
+  const [loadingPlaylists, setLoadingPlaylists] = useState(true);
+  const [loadingSettings, setLoadingSettings] = useState(true);
+
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [showTimeoutNotice, setShowTimeoutNotice] = useState(false);
 
-  // Load all user personal data
+  // Load all user personal data with graceful minimum 200ms grace period to avoid UI flashes
   useEffect(() => {
-    async function loadData() {
-      if (!user) return;
-      setLoading(true);
-      try {
-        const [songs, moods, userPlaylists, userSettings] = await Promise.allSettled([
-          getSavedSongs(),
-          getMoodHistory(15),
-          getPlaylists(),
-          getUserSettings()
-        ]);
+    if (!user) return;
 
-        if (songs.status === 'fulfilled') setSavedSongs(songs.value);
-        if (moods.status === 'fulfilled') setMoodHistory(moods.value);
-        if (userPlaylists.status === 'fulfilled') setPlaylists(userPlaylists.value);
-        if (userSettings.status === 'fulfilled' && userSettings.value) setSettings(userSettings.value);
-      } catch (err) {
-        console.error('[MySpace] Error loading user space:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
+    const timeoutTimer = setTimeout(() => {
+      setShowTimeoutNotice(true);
+    }, 10000);
+
+    const minDelay = new Promise(resolve => setTimeout(resolve, 250));
+
+    // 1. Fetch Saved Songs
+    Promise.all([getSavedSongs(), minDelay])
+      .then(([songs]) => {
+        setSavedSongs(songs || []);
+      })
+      .catch(err => console.error('[MySpace] Error loading saved songs:', err))
+      .finally(() => setLoadingSongs(false));
+
+    // 2. Fetch Mood History
+    Promise.all([getMoodHistory(15), minDelay])
+      .then(([moods]) => {
+        setMoodHistory(moods || []);
+      })
+      .catch(err => console.error('[MySpace] Error loading mood history:', err))
+      .finally(() => setLoadingMoods(false));
+
+    // 3. Fetch Playlists
+    Promise.all([getPlaylists(), minDelay])
+      .then(([pls]) => {
+        setPlaylists(pls || []);
+      })
+      .catch(err => console.error('[MySpace] Error loading playlists:', err))
+      .finally(() => setLoadingPlaylists(false));
+
+    // 4. Fetch User Settings
+    Promise.all([getUserSettings(), minDelay])
+      .then(([st]) => {
+        if (st) setSettings(st);
+      })
+      .catch(err => console.error('[MySpace] Error loading settings:', err))
+      .finally(() => setLoadingSettings(false));
+
+    return () => clearTimeout(timeoutTimer);
   }, [user]);
+
+  const isInitialFullLoading = loadingSongs && loadingMoods && loadingPlaylists;
+
+  if (isInitialFullLoading) {
+    return <MySpaceSkeleton />;
+  }
 
   const handleRemoveSong = async (trackId) => {
     try {
@@ -174,144 +211,182 @@ export default function MySpace() {
         </div>
       </div>
 
-      {loading ? (
-        <div style={styles.loadingContainer}>
-          <div style={styles.spinner} />
-          <p style={styles.loadingText}>Syncing your personal music cloud...</p>
-        </div>
-      ) : (
-        <div style={styles.contentArea}>
-          {/* SECTION 1: RECENTLY SAVED SONGS */}
-          {(activeTab === 'overview' || activeTab === 'saved') && (
-            <div style={styles.section}>
-              <div style={styles.sectionHeader}>
-                <h2 style={styles.sectionTitle}>❤️ Recently Saved Songs</h2>
-                {savedSongs.length > 0 && (
-                  <span style={styles.badge}>{savedSongs.length} Tracks</span>
-                )}
-              </div>
-
-              {savedSongs.length === 0 ? (
-                <div style={styles.emptyCard}>
-                  <div style={styles.emptyIcon}>🎵</div>
-                  <h3 style={styles.emptyTitle}>No songs saved yet</h3>
-                  <p style={styles.emptyText}>Tap the heart icon on any track while streaming to save it to your personal space.</p>
-                </div>
-              ) : (
-                <div style={styles.trackList}>
-                  {savedSongs.slice(0, activeTab === 'overview' ? 6 : 50).map((song) => (
-                    <div key={song.id || song.track_id} style={styles.trackItem}>
-                      <img
-                        src={song.image_url || 'icon.png'}
-                        alt={song.track_name}
-                        style={styles.trackArt}
-                        onError={(e) => { e.target.src = 'icon.png'; }}
-                      />
-                      <div style={styles.trackDetails}>
-                        <div style={styles.trackName}>{song.track_name}</div>
-                        <div style={styles.trackArtist}>{song.artist}</div>
-                      </div>
-                      {song.mood_tag && (
-                        <span style={styles.moodTag}>{song.mood_tag}</span>
-                      )}
-                      <button
-                        style={styles.deleteBtn}
-                        onClick={() => handleRemoveSong(song.track_id)}
-                        title="Remove from saved"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
+      <div style={styles.contentArea}>
+        {/* SECTION 1: RECENTLY SAVED SONGS */}
+        {(activeTab === 'overview' || activeTab === 'saved') && (
+          <div style={styles.section}>
+            <div style={styles.sectionHeader}>
+              <h2 style={styles.sectionTitle}>❤️ Recently Saved Songs</h2>
+              {!loadingSongs && savedSongs.length > 0 && (
+                <span style={styles.badge}>{savedSongs.length} Tracks</span>
               )}
             </div>
-          )}
 
-          {/* SECTION 2: MOOD TIMELINE */}
-          {(activeTab === 'overview' || activeTab === 'moods') && (
-            <div style={styles.section}>
-              <div style={styles.sectionHeader}>
-                <h2 style={styles.sectionTitle}>🎭 Your Mood Timeline</h2>
-                {moodHistory.length > 0 && (
-                  <span style={styles.badge}>{moodHistory.length} Scans</span>
-                )}
+            {loadingSongs ? (
+              <PlaylistSkeleton count={activeTab === 'overview' ? 4 : 8} />
+            ) : savedSongs.length === 0 ? (
+              <div style={styles.emptyCard}>
+                <div style={styles.emptyIcon}>🎵</div>
+                <h3 style={styles.emptyTitle}>No songs saved yet</h3>
+                <p style={styles.emptyText}>Tap the heart icon on any track while streaming to save it to your personal space.</p>
               </div>
-
-              {moodHistory.length === 0 ? (
-                <div style={styles.emptyCard}>
-                  <div style={styles.emptyIcon}>📷</div>
-                  <h3 style={styles.emptyTitle}>No mood history recorded yet</h3>
-                  <p style={styles.emptyText}>Take a face scan on the home screen to log your first mood and unlock tailored soundscapes.</p>
-                </div>
-              ) : (
-                <div style={styles.timelineList}>
-                  {moodHistory.slice(0, activeTab === 'overview' ? 5 : 30).map((entry) => (
-                    <div key={entry.id} style={styles.timelineItem}>
-                      <div style={styles.moodEmoji}>{getMoodEmoji(entry.detected_mood)}</div>
-                      <div style={styles.timelineInfo}>
-                        <div style={styles.timelineMood}>{entry.detected_mood}</div>
-                        <div style={styles.timelineMeta}>
-                          {new Date(entry.created_at).toLocaleDateString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })} • {entry.source === 'face_scan' ? 'AI Camera Scan' : 'Manual Select'}
-                        </div>
-                      </div>
-                      <div style={styles.confidenceBadge}>
-                        {Math.round(entry.confidence || 85)}% Match
-                      </div>
+            ) : (
+              <div style={styles.trackList}>
+                {savedSongs.slice(0, activeTab === 'overview' ? 6 : 50).map((song) => (
+                  <div key={song.id || song.track_id} style={styles.trackItem}>
+                    <img
+                      src={song.image_url || 'icon.png'}
+                      alt={song.track_name}
+                      style={styles.trackArt}
+                      onError={(e) => { e.target.src = 'icon.png'; }}
+                    />
+                    <div style={styles.trackDetails}>
+                      <div style={styles.trackName}>{song.track_name}</div>
+                      <div style={styles.trackArtist}>{song.artist}</div>
                     </div>
-                  ))}
-                </div>
+                    {song.mood_tag && (
+                      <span style={styles.moodTag}>{song.mood_tag}</span>
+                    )}
+                    <button
+                      style={styles.deleteBtn}
+                      onClick={() => handleRemoveSong(song.track_id)}
+                      title="Remove from saved"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SECTION 2: MOOD TIMELINE */}
+        {(activeTab === 'overview' || activeTab === 'moods') && (
+          <div style={styles.section}>
+            <div style={styles.sectionHeader}>
+              <h2 style={styles.sectionTitle}>🎭 Your Mood Timeline</h2>
+              {!loadingMoods && moodHistory.length > 0 && (
+                <span style={styles.badge}>{moodHistory.length} Scans</span>
               )}
             </div>
-          )}
 
-          {/* SECTION 3: USER PLAYLISTS */}
-          {(activeTab === 'overview' || activeTab === 'playlists') && (
-            <div style={styles.section}>
-              <div style={styles.sectionHeader}>
-                <h2 style={styles.sectionTitle}>📂 Your Custom Playlists</h2>
+            {loadingMoods ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '14px',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.05)',
+                      borderRadius: '12px',
+                      padding: '12px 16px',
+                    }}
+                  >
+                    <SkeletonCircle size="32px" />
+                    <div style={{ flex: 1 }}>
+                      <SkeletonText width="40%" height="15px" style={{ marginBottom: '6px' }} />
+                      <SkeletonText width="55%" height="12px" />
+                    </div>
+                    <SkeletonBox width="60px" height="20px" borderRadius="8px" />
+                  </div>
+                ))}
+              </div>
+            ) : moodHistory.length === 0 ? (
+              <div style={styles.emptyCard}>
+                <div style={styles.emptyIcon}>📷</div>
+                <h3 style={styles.emptyTitle}>No mood history recorded yet</h3>
+                <p style={styles.emptyText}>Take a face scan on the home screen to log your first mood and unlock tailored soundscapes.</p>
+              </div>
+            ) : (
+              <div style={styles.timelineList}>
+                {moodHistory.slice(0, activeTab === 'overview' ? 5 : 30).map((entry) => (
+                  <div key={entry.id} style={styles.timelineItem}>
+                    <div style={styles.moodEmoji}>{getMoodEmoji(entry.detected_mood)}</div>
+                    <div style={styles.timelineInfo}>
+                      <div style={styles.timelineMood}>{entry.detected_mood}</div>
+                      <div style={styles.timelineMeta}>
+                        {new Date(entry.created_at).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })} • {entry.source === 'face_scan' ? 'AI Camera Scan' : 'Manual Select'}
+                      </div>
+                    </div>
+                    <div style={styles.confidenceBadge}>
+                      {Math.round(entry.confidence || 85)}% Match
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SECTION 3: USER PLAYLISTS */}
+        {(activeTab === 'overview' || activeTab === 'playlists') && (
+          <div style={styles.section}>
+            <div style={styles.sectionHeader}>
+              <h2 style={styles.sectionTitle}>📂 Your Custom Playlists</h2>
+              <button
+                style={styles.actionBtn}
+                onClick={() => setShowCreateModal(true)}
+              >
+                + New Playlist
+              </button>
+            </div>
+
+            {loadingPlaylists ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '16px' }}>
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      borderRadius: '14px',
+                      padding: '16px',
+                    }}
+                  >
+                    <SkeletonBox width="100%" height="130px" borderRadius="10px" style={{ marginBottom: '12px' }} />
+                    <SkeletonText width="65%" height="14px" style={{ marginBottom: '6px' }} />
+                    <SkeletonText width="40%" height="11px" />
+                  </div>
+                ))}
+              </div>
+            ) : playlists.length === 0 ? (
+              <div style={styles.emptyCard}>
+                <div style={styles.emptyIcon}>💿</div>
+                <h3 style={styles.emptyTitle}>No custom playlists yet</h3>
+                <p style={styles.emptyText}>Create custom collections for work, gym, relaxation, and late-night vibes.</p>
                 <button
-                  style={styles.actionBtn}
+                  style={styles.actionBtnPrimary}
                   onClick={() => setShowCreateModal(true)}
                 >
-                  + New Playlist
+                  Create Your First Playlist
                 </button>
               </div>
-
-              {playlists.length === 0 ? (
-                <div style={styles.emptyCard}>
-                  <div style={styles.emptyIcon}>💿</div>
-                  <h3 style={styles.emptyTitle}>No custom playlists yet</h3>
-                  <p style={styles.emptyText}>Create custom collections for work, gym, relaxation, and late-night vibes.</p>
-                  <button
-                    style={styles.actionBtnPrimary}
-                    onClick={() => setShowCreateModal(true)}
-                  >
-                    Create Your First Playlist
-                  </button>
-                </div>
-              ) : (
-                <div style={styles.playlistGrid}>
-                  {playlists.map((pl) => (
-                    <div key={pl.id} style={styles.playlistCard}>
-                      <div style={styles.playlistCover}>
-                        <span style={{ fontSize: '32px' }}>🎵</span>
-                      </div>
-                      <div style={styles.playlistTitle}>{pl.playlist_name}</div>
-                      <div style={styles.playlistMeta}>
-                        Created {new Date(pl.created_at).toLocaleDateString()}
-                      </div>
+            ) : (
+              <div style={styles.playlistGrid}>
+                {playlists.map((pl) => (
+                  <div key={pl.id} style={styles.playlistCard}>
+                    <div style={styles.playlistCover}>
+                      <span style={{ fontSize: '32px' }}>🎵</span>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                    <div style={styles.playlistTitle}>{pl.playlist_name}</div>
+                    <div style={styles.playlistMeta}>
+                      Created {new Date(pl.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
           {/* SECTION 4: PREFERENCES & SETTINGS */}
           {activeTab === 'settings' && (

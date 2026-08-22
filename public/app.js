@@ -5493,3 +5493,37 @@ function initSupabaseAuthUI() {
   // Check on load
   updateAuthUI();
 }
+
+// ─────────────────────────────────────────────────────────────────
+// SKELETON LOADING CONTROLLER & HELPERS
+// ─────────────────────────────────────────────────────────────────
+
+function dismissAppBootSkeleton() {
+  const bootSkeleton = document.getElementById('app-boot-skeleton');
+  if (bootSkeleton) {
+    bootSkeleton.style.opacity = '0';
+    setTimeout(() => {
+      bootSkeleton.style.display = 'none';
+    }, 450);
+  }
+}
+
+function renderTrackSkeletons(container, count = 5) {
+  if (!container) return;
+  container.innerHTML = Array.from({ length: count }).map((_, i) => `
+    <div class="skeleton-track-row" style="display:flex; align-items:center; gap:12px; padding:10px 14px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); border-radius:12px; margin-bottom:8px;">
+      <div class="skeleton-shimmer" style="width:48px; height:48px; border-radius:8px; flex-shrink:0;"></div>
+      <div style="flex:1; min-width:0;">
+        <div class="skeleton-shimmer" style="width:${i % 2 === 0 ? '60%' : '45%'}; height:14px; border-radius:4px; margin-bottom:6px;"></div>
+        <div class="skeleton-shimmer" style="width:${i % 2 === 0 ? '35%' : '25%'}; height:11px; border-radius:4px;"></div>
+      </div>
+      <div class="skeleton-shimmer" style="width:36px; height:12px; border-radius:4px;"></div>
+    </div>
+  `).join('');
+}
+
+// Dismiss boot skeleton once app DOM and Lucide icons are initialized
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(dismissAppBootSkeleton, 350);
+});
+

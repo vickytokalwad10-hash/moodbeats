@@ -1,0 +1,49 @@
+/* ══════════════════════════════════════════════════════════════ */
+/* MoodBeats — Spotify-Inspired Dark Theme Skeleton Shimmer CSS */
+/* ══════════════════════════════════════════════════════════════ */
+
+@keyframes moodbeatsShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes moodbeatsPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(0.98);
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: moodbeatsShimmer 1.6s ease-in-out infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.skeleton-pulse {
+  animation: moodbeatsPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.skeleton-fade-enter {
+  opacity: 0;
+  transition: opacity 0.3s ease-in;
+}
+
+.skeleton-fade-enter-active {
+  opacity: 1;
+}
