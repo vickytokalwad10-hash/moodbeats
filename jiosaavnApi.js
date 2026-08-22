@@ -121,19 +121,25 @@ function _img(imageArr, fallback = 'icon.png') {
 }
 
 function _streamUrls(downloadUrlArr) {
-  if (!downloadUrlArr || !downloadUrlArr.length) {
+  if (!downloadUrlArr) {
+    return { primary: null, fallbacks: [] };
+  }
+  if (typeof downloadUrlArr === 'string') {
+    return { primary: downloadUrlArr, fallbacks: [] };
+  }
+  if (!Array.isArray(downloadUrlArr) || !downloadUrlArr.length) {
     return { primary: null, fallbacks: [] };
   }
   // Sort by quality descending (320kbps -> 160kbps -> 96kbps -> 48kbps -> 12kbps)
   const sorted = [...downloadUrlArr].sort((a, b) => {
-    const qa = parseInt(a.quality) || 0;
-    const qb = parseInt(b.quality) || 0;
+    const qa = parseInt(a?.quality) || 0;
+    const qb = parseInt(b?.quality) || 0;
     return qb - qa;
   });
   const [best, ...rest] = sorted;
   return {
     primary: best?.url || null,
-    fallbacks: rest.map(u => u.url).filter(Boolean),
+    fallbacks: rest.map(u => u?.url).filter(Boolean),
     allQualities: downloadUrlArr,
   };
 }
@@ -503,6 +509,35 @@ function jsaNextFallbackUrl(song, currentUrl) {
   return null;
 }
 
+async function jsaGetStream(songId) {
+  if (!songId) return null;
+  try {
+    const res = await jsaFetch(`/api/stream/${encodeURIComponent(songId)}`, 6000);
+    if (res && res.status === 'SUCCESS' && res.streamUrl) {
+      return res;
+    }
+  } catch (err) {
+    console.warn(`[JSA] Stream API fallback for ${songId}:`, err.message);
+  }
+
+  // Fallback to song details API
+  const song = await jsaGetSong(songId);
+  if (song && song.downloadUrl) {
+    return {
+      songId,
+      streamUrl: song.downloadUrl,
+      quality: '320kbps',
+      fallbacks: song.streamFallbacks || []
+    };
+  }
+  return null;
+}
+
+function jsaGetProxiedAudioUrl(audioUrl) {
+  if (!audioUrl || !audioUrl.startsWith('http')) return audioUrl;
+  return `${_jsaWorkingHost}/api/stream/audio?url=${encodeURIComponent(audioUrl)}`;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // 10. EXPORT
 // ─────────────────────────────────────────────────────────────────
@@ -517,6 +552,8 @@ window.JSA = {
   getAlbum:               jsaGetAlbum,
   getPlaylist:            jsaGetPlaylist,
   getSong:                jsaGetSong,
+  getStream:              jsaGetStream,
+  getProxiedAudioUrl:     jsaGetProxiedAudioUrl,
   getMoodPlaylist:        jsaGetMoodPlaylist,
   getSoundscapePlaylist:  jsaGetSoundscapePlaylist,
   getTrackRadio:          jsaGetTrackRadio,

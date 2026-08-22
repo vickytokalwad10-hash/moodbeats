@@ -105,11 +105,29 @@ const MIME_TYPES = {
 };
 
 const syncSessions = {};
+const streamCache = new Map();
+
+function getCachedStream(songId) {
+  const cached = streamCache.get(songId);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
+  streamCache.delete(songId);
+  return null;
+}
+
+function setCachedStream(songId, data, ttlSec = 300) {
+  streamCache.set(songId, {
+    data,
+    expiresAt: Date.now() + ttlSec * 1000
+  });
+}
 
 async function handleRequest(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Range');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Content-Length, Accept-Ranges');
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
@@ -119,6 +137,110 @@ async function handleRequest(req, res) {
 
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = urlObj.pathname;
+
+  // Stream Resolution Endpoint (/api/stream/:songId or /api/stream?id=...)
+  if (pathname.startsWith('/api/stream') && !pathname.includes('/audio')) {
+    try {
+      const parts = pathname.split('/').filter(Boolean);
+      let songId = (parts.length >= 3 && parts[1] === 'stream') ? parts[2] : (urlObj.searchParams.get('id') || urlObj.searchParams.get('songId'));
+      if (!songId) {
+        res.statusCode = 400;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'Missing song id parameter' }));
+        return;
+      }
+
+      // Check Cache
+      const cached = getCachedStream(songId);
+      if (cached) {
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('X-Cache', 'HIT');
+        res.end(JSON.stringify({ status: 'SUCCESS', ...cached }));
+        return;
+      }
+
+      // Fetch fresh metadata from JioSaavn
+      const data = await jioFetch({ __call: 'song.getDetails', pids: songId });
+      const rawSong = data[songId] || Object.values(data)[0];
+      if (!rawSong || !rawSong.encrypted_media_url) {
+        res.statusCode = 404;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ status: 'FAILED', error: 'Song or media URL not found' }));
+        return;
+      }
+
+      const mediaUrls = decryptMedia(rawSong.encrypted_media_url);
+      const stream320 = mediaUrls.find(m => m.quality === '320kbps')?.url || mediaUrls[0]?.url;
+      const stream160 = mediaUrls.find(m => m.quality === '160kbps')?.url;
+      const stream96 = mediaUrls.find(m => m.quality === '96kbps')?.url;
+
+      const responsePayload = {
+        songId,
+        title: rawSong.song || rawSong.title || 'Unknown Track',
+        artist: rawSong.primary_artists || rawSong.singers || 'Unknown Artist',
+        streamUrl: stream320 || stream160 || stream96,
+        quality: '320kbps',
+        fallbacks: [stream160, stream96].filter(Boolean),
+        expiresIn: 300
+      };
+
+      setCachedStream(songId, responsePayload, 300);
+
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('X-Cache', 'MISS');
+      res.end(JSON.stringify({ status: 'SUCCESS', ...responsePayload }));
+    } catch(e) {
+      console.error('[Stream API Error]:', e);
+      res.statusCode = 500;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ status: 'FAILED', error: e.message || 'Stream resolution failed' }));
+    }
+    return;
+  }
+
+  // Direct Audio Proxying Endpoint (/api/stream/audio or /api/proxy/audio)
+  if (pathname === '/api/stream/audio' || pathname === '/api/proxy/audio') {
+    const audioUrl = urlObj.searchParams.get('url');
+    if (!audioUrl || !audioUrl.startsWith('http')) {
+      res.statusCode = 400;
+      res.end('Missing or invalid audio URL');
+      return;
+    }
+
+    try {
+      const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://www.jiosaavn.com/'
+      };
+      if (req.headers.range) {
+        headers['Range'] = req.headers.range;
+      }
+
+      const client = audioUrl.startsWith('https') ? https : http;
+      client.get(audioUrl, { headers }, (upstreamRes) => {
+        res.statusCode = upstreamRes.statusCode;
+        res.setHeader('Content-Type', upstreamRes.headers['content-type'] || 'audio/mp4');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Accept-Ranges', 'bytes');
+        if (upstreamRes.headers['content-range']) {
+          res.setHeader('Content-Range', upstreamRes.headers['content-range']);
+        }
+        if (upstreamRes.headers['content-length']) {
+          res.setHeader('Content-Length', upstreamRes.headers['content-length']);
+        }
+        upstreamRes.pipe(res);
+      }).on('error', (err) => {
+        res.statusCode = 502;
+        res.end('Audio proxy upstream error');
+      });
+    } catch (e) {
+      res.statusCode = 500;
+      res.end(e.message);
+    }
+    return;
+  }
 
   // 1. IP endpoint
   if (pathname === '/api/ip') {

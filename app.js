@@ -932,14 +932,18 @@ function initSoundscapesHub() {
 
 // Play a song using the <audio> element with automatic quality fallback & queue sync
 function saavnPlaySong(song, queue = null, index = null) {
-  const url = (window.JSA ? window.JSA.bestStreamUrl(song) : null) || song?.downloadUrl || song?.streamUrl;
+  console.log('[MoodBeats Audio Pipeline] 🎵 Track requested for playback:', {
+    id: song?.id,
+    title: song?.title || song?.name,
+    artist: song?.artist || song?.primaryArtists,
+    hasDownloadUrl: !!song?.downloadUrl,
+    hasStreamUrl: !!song?.streamUrl,
+    downloadUrlType: typeof song?.downloadUrl,
+  });
 
-  if (!url) {
-    showToast('⚠️ Stream URL not available for this song');
-    return;
-  }
+  let url = (window.JSA ? window.JSA.bestStreamUrl(song) : null) || song?.downloadUrl || song?.streamUrl;
 
-  // Set up queue context
+  // Set up queue context immediately so UI is responsive
   if (queue && Array.isArray(queue) && queue.length > 0) {
     state.playQueue = [...queue];
     state.queueIndex = index !== null && index >= 0 ? index : state.playQueue.findIndex(s => s.id === song.id);
@@ -948,7 +952,6 @@ function saavnPlaySong(song, queue = null, index = null) {
     state.playQueue = [song];
     state.queueIndex = 0;
   } else {
-    // If not in current queue, add or find
     const foundIdx = state.playQueue.findIndex(s => s.id === song.id);
     if (foundIdx >= 0) {
       state.queueIndex = foundIdx;
@@ -958,7 +961,7 @@ function saavnPlaySong(song, queue = null, index = null) {
     }
   }
 
-  // Stop YouTube player if running
+  // Stop YouTube player if active
   if (typeof ytPlayer !== 'undefined' && ytPlayer?.pauseVideo) {
     try { ytPlayer.pauseVideo(); } catch(e) {}
   }
@@ -966,55 +969,146 @@ function saavnPlaySong(song, queue = null, index = null) {
   // Reuse or create audio element
   if (!state.saavnAudio) {
     state.saavnAudio = new Audio();
-    state.saavnAudio.preload = 'metadata';
-    state.saavnAudio.crossOrigin = 'anonymous';
+    state.saavnAudio.preload = 'auto';
+
+    state.saavnAudio.addEventListener('loadstart', () => {
+      console.log('[MoodBeats Audio] ⏳ loadstart initiated for URL:', state.saavnAudio.src);
+    });
+
+    state.saavnAudio.addEventListener('loadedmetadata', () => {
+      console.log('[MoodBeats Audio] 📊 loadedmetadata: Duration =', state.saavnAudio.duration, 'seconds');
+    });
+
+    state.saavnAudio.addEventListener('canplay', () => {
+      console.log('[MoodBeats Audio] ▶️ canplay event fired! Audio ready to render.');
+    });
+
+    state.saavnAudio.addEventListener('playing', () => {
+      console.log('[MoodBeats Audio] 🔊 Audio is now actively playing.');
+      state.saavnIsPlaying = true;
+      state.isPlaying = true;
+      updateSaavnPlayerUI(true);
+    });
+
+    state.saavnAudio.addEventListener('waiting', () => {
+      console.warn('[MoodBeats Audio] ⏳ Buffering chunk...');
+    });
+
+    state.saavnAudio.addEventListener('stalled', () => {
+      console.warn('[MoodBeats Audio] ⚠️ Audio stream stalled. Checking network...');
+    });
 
     state.saavnAudio.addEventListener('ended', () => {
+      console.log('[MoodBeats Audio] 🏁 Track ended naturally.');
       if (state.repeatMode === 'one') {
         state.saavnAudio.currentTime = 0;
         state.saavnAudio.play().catch(() => {});
         return;
       }
-      saavnNext(true); // pass isAutoEnded = true
+      saavnNext(true);
     });
 
-    state.saavnAudio.addEventListener('error', () => {
+    state.saavnAudio.addEventListener('error', (e) => {
+      const err = state.saavnAudio.error;
+      const errorCodes = {
+        1: 'MEDIA_ERR_ABORTED (User aborted fetching)',
+        2: 'MEDIA_ERR_NETWORK (Network error occurred while fetching)',
+        3: 'MEDIA_ERR_DECODE (Error decoding media file)',
+        4: 'MEDIA_ERR_SRC_NOT_SUPPORTED (Source format or stream URL not supported)'
+      };
+      const codeMsg = err ? errorCodes[err.code] || `Unknown Code (${err.code})` : 'Unknown Error';
+      console.error('[MoodBeats Audio Error] ❌ HTML5 Audio element error:', codeMsg, 'Current src:', state.saavnAudio.src);
+
       const currentUrl = state.saavnAudio.src;
+
+      // Tier 1: Try Next CDN Quality Fallback (160k -> 96k)
       const fallbackUrl = (window.JSA && state.saavnCurrentSong) ? window.JSA.nextFallbackUrl(state.saavnCurrentSong, currentUrl) : null;
       if (fallbackUrl) {
-        console.log('[MoodBeats Audio] Primary stream failed, trying fallback:', fallbackUrl);
-        showToast('🔄 Switching to fallback stream quality...');
+        console.log('[MoodBeats Audio Recovery] 🔄 Switching to fallback stream quality:', fallbackUrl);
+        showToast('🔄 Switching to fallback audio quality...');
         state.saavnAudio.src = fallbackUrl;
-        state.saavnAudio.play().catch(() => {});
-      } else {
-        showToast('⚠️ Could not stream this song. Skipping...');
-        saavnNext(true);
+        state.saavnAudio.play().catch(playErr => console.warn('[MoodBeats Audio] Fallback play error:', playErr));
+        return;
       }
+
+      // Tier 2: Try Backend Audio Proxy Stream (Bypasses CDN/ISP/CORS blocks)
+      if (window.JSA && currentUrl && !currentUrl.includes('/api/stream/audio')) {
+        const proxiedUrl = window.JSA.getProxiedAudioUrl(currentUrl);
+        console.log('[MoodBeats Audio Recovery] 🛡️ Attempting backend stream proxy:', proxiedUrl);
+        showToast('🔄 Routing audio through stream proxy...');
+        state.saavnAudio.src = proxiedUrl;
+        state.saavnAudio.play().catch(playErr => console.warn('[MoodBeats Audio] Proxy play error:', playErr));
+        return;
+      }
+
+      // Tier 3: Skip to next track
+      showToast('⚠️ Could not stream this song. Skipping to next...');
+      saavnNext(true);
     });
 
     state.saavnAudio.addEventListener('timeupdate', updateSaavnProgress);
   }
 
-  // Resume Web Audio Context if suspended
-  initEqualizer();
-  if (state.eqContext && state.eqContext.state === 'suspended') {
-    state.eqContext.resume().catch(() => {});
+  // Async stream resolution helper if URL is missing on the song object
+  const executePlay = (streamUrl) => {
+    console.log('[MoodBeats Audio Pipeline] 🚀 Initiating playback with stream URL:', streamUrl);
+
+    // Initialize or resume equalizer safely
+    try {
+      initEqualizer();
+      if (state.eqContext && state.eqContext.state === 'suspended') {
+        state.eqContext.resume().catch(() => {});
+      }
+    } catch(eqErr) {
+      console.warn('[MoodBeats Audio] Web Audio Context note:', eqErr.message);
+    }
+
+    state.saavnAudio.src = streamUrl;
+    state.saavnCurrentSong = song;
+    state.saavnIsPlaying = true;
+    state.isPlaying = true;
+
+    state.saavnAudio.play().then(() => {
+      console.log('[MoodBeats Audio] 🎵 Playback started successfully.');
+      notifyAndroidBridge('metadata', { title: song.title, artist: song.artist });
+      notifyAndroidBridge('playback', { isPlaying: true, position: 0, duration: song.duration || 0 });
+    }).catch(playErr => {
+      console.warn('[MoodBeats Audio] ⚠️ Audio play() rejected:', playErr.message);
+      if (playErr.name === 'NotAllowedError') {
+        showToast('⚠️ Tap play to enable audio');
+      } else {
+        // If play failed on direct CDN, try proxied stream
+        if (window.JSA && streamUrl && !streamUrl.includes('/api/stream/audio')) {
+          const proxiedUrl = window.JSA.getProxiedAudioUrl(streamUrl);
+          console.log('[MoodBeats Audio] 🔄 Retrying with backend proxy:', proxiedUrl);
+          state.saavnAudio.src = proxiedUrl;
+          state.saavnAudio.play().catch(() => {});
+        }
+      }
+    });
+  };
+
+  if (!url && song?.id && window.JSA?.getStream) {
+    console.log('[MoodBeats Audio Pipeline] ⏳ Fetching fresh stream for song ID:', song.id);
+    showToast('⏳ Loading high quality stream...');
+    window.JSA.getStream(song.id).then(streamData => {
+      if (streamData && streamData.streamUrl) {
+        song.downloadUrl = streamData.streamUrl;
+        song.streamFallbacks = streamData.fallbacks || [];
+        executePlay(streamData.streamUrl);
+      } else {
+        showToast('⚠️ Stream URL not available for this song');
+      }
+    }).catch(err => {
+      console.error('[MoodBeats Audio Pipeline] Stream fetch failed:', err);
+      showToast('⚠️ Stream URL resolution failed');
+    });
+  } else if (url) {
+    executePlay(url);
+  } else {
+    showToast('⚠️ Stream URL not available for this song');
+    return;
   }
-
-  state.saavnAudio.src = url;
-  state.saavnCurrentSong = song;
-  state.saavnIsPlaying = true;
-  state.isPlaying = true;
-
-  state.saavnAudio.play().then(() => {
-    notifyAndroidBridge('metadata', { title: song.title, artist: song.artist });
-    notifyAndroidBridge('playback', { isPlaying: true, position: 0, duration: song.duration || 0 });
-  }).catch(e => {
-    console.warn('[MoodBeats Audio] play() blocked or failed:', e);
-    showToast('⚠️ Tap play to start playback');
-    state.saavnIsPlaying = false;
-    state.isPlaying = false;
-  });
 
   // Track recently played
   if (song && song.title) {
