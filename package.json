@@ -10,13 +10,14 @@
     "start": "node server.js",
     "dev": "node server.js",
     "build": "node build.js",
-    "build:cap": "powershell -Command \"Remove-Item -Path www -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Path www -Force | Out-Null; Copy-Item index.html,app.js,styles.css,manifest.json,sw.js,jiosaavnApi.js,face-api.min.js,lucide.min.js,icon.png,icon-192.png www -Force -ErrorAction SilentlyContinue; Copy-Item models www -Recurse -Force -ErrorAction SilentlyContinue\""
+    "build:cap": "powershell -Command \"Remove-Item -Path www -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Path www -Force | Out-Null; Copy-Item index.html,app.js,styles.css,manifest.json,sw.js,jiosaavnApi.js,supabaseService.js,face-api.min.js,lucide.min.js,icon.png,icon-192.png www -Force -ErrorAction SilentlyContinue; Copy-Item models www -Recurse -Force -ErrorAction SilentlyContinue\""
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",
     "@capacitor/app": "^8.1.1",
     "@capacitor/cli": "^8.4.1",
     "@capacitor/core": "^8.4.1",
+    "@supabase/supabase-js": "^2.112.3",
     "crypto-js": "^4.2.0",
     "localtunnel": "^2.0.2",
     "lucide": "^1.31.0"

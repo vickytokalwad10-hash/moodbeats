@@ -438,6 +438,11 @@ function toggleLikeSong(song) {
     localStorage.setItem('moodbeats_liked_songs', JSON.stringify(state.likedSongs));
   } catch(e) {}
 
+  // Sync with Supabase Cloud
+  if (window.MoodSupabase && typeof window.MoodSupabase.syncLikedSong === 'function') {
+    window.MoodSupabase.syncLikedSong(song, idx < 0);
+  }
+
   updateAllLikeButtons(song);
   updateLibraryLikedHero();
 }
@@ -2849,6 +2854,11 @@ function addToHistory(mood, emoji, confidence) {
   if (state.history.length > 5) {
     state.history.pop();
   }
+
+  // Sync scan with Supabase Cloud
+  if (window.MoodSupabase && typeof window.MoodSupabase.syncMoodScan === 'function') {
+    window.MoodSupabase.syncMoodScan(mood, confidence);
+  }
   
   updateHistoryTimelineStrip();
 }
@@ -4668,6 +4678,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize Hardware Back Button Listener (Capacitor & Web)
   initHardwareBackListener();
   
+  // Initialize Supabase Auth & Cloud Sync
+  initSupabaseAuthUI();
+  
   // Pre-warm face models silently in the background 3s after page load
   // so they are ready instantly when the user navigates to the scan view
   setTimeout(() => {
@@ -4999,3 +5012,252 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 });
+
+// ==========================================
+// 12. Supabase Auth & Cloud Sync Controller
+// ==========================================
+function initSupabaseAuthUI() {
+  const authModal = document.getElementById('auth-modal');
+  const btnAuthTrigger = document.getElementById('btn-auth-trigger');
+  const btnCloseAuthModal = document.getElementById('btn-close-auth-modal');
+  const tabLogin = document.getElementById('tab-auth-login');
+  const tabSignup = document.getElementById('tab-auth-signup');
+  const loggedOutSection = document.getElementById('auth-logged-out-section');
+  const loggedInSection = document.getElementById('auth-logged-in-section');
+  const alertBanner = document.getElementById('auth-alert-banner');
+  const emailForm = document.getElementById('auth-email-form');
+  const nameGroup = document.getElementById('auth-name-group');
+  const confirmGroup = document.getElementById('auth-confirm-group');
+  const inputName = document.getElementById('auth-input-name');
+  const inputEmail = document.getElementById('auth-input-email');
+  const inputPassword = document.getElementById('auth-input-password');
+  const inputConfirm = document.getElementById('auth-input-confirm');
+  const btnSubmit = document.getElementById('btn-auth-submit');
+  const btnSubmitText = document.getElementById('btn-auth-submit-text');
+  const btnGoogle = document.getElementById('btn-google-auth');
+  const btnSignOut = document.getElementById('btn-auth-signout');
+  const btnSyncCloud = document.getElementById('btn-sync-cloud');
+  const userProfileName = document.getElementById('user-profile-name');
+  const userProfileEmail = document.getElementById('user-profile-email');
+  const userAvatarCircle = document.getElementById('user-avatar-circle');
+  const headerUserIcon = document.getElementById('header-user-icon');
+
+  let currentAuthTab = 'login';
+
+  const showAlert = (msg, isError = true) => {
+    if (!alertBanner) return;
+    alertBanner.style.display = 'flex';
+    alertBanner.style.background = isError ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)';
+    alertBanner.style.color = isError ? '#fca5a5' : '#86efac';
+    alertBanner.style.border = isError ? '1px solid rgba(239,68,68,0.3)' : '1px solid rgba(16,185,129,0.3)';
+    alertBanner.innerHTML = `<span>${isError ? '⚠️' : '✅'}</span><span>${msg}</span>`;
+  };
+
+  const hideAlert = () => {
+    if (alertBanner) alertBanner.style.display = 'none';
+  };
+
+  const updateAuthUI = async () => {
+    if (!window.MoodSupabase) return;
+    const user = await window.MoodSupabase.getUser();
+
+    if (user) {
+      if (loggedOutSection) loggedOutSection.style.display = 'none';
+      if (loggedInSection) loggedInSection.style.display = 'block';
+
+      const displayName = user.user_metadata?.full_name || user.email?.split('@')[0] || 'User';
+      const email = user.email || '';
+
+      if (userProfileName) userProfileName.textContent = displayName;
+      if (userProfileEmail) userProfileEmail.textContent = email;
+      if (userAvatarCircle) userAvatarCircle.textContent = displayName.charAt(0).toUpperCase();
+
+      if (headerUserIcon && headerUserIcon.parentElement) {
+        headerUserIcon.parentElement.style.borderColor = 'rgba(168, 85, 247, 0.6)';
+        headerUserIcon.parentElement.style.background = 'rgba(168, 85, 247, 0.2)';
+      }
+    } else {
+      if (loggedOutSection) loggedOutSection.style.display = 'block';
+      if (loggedInSection) loggedInSection.style.display = 'none';
+
+      if (headerUserIcon && headerUserIcon.parentElement) {
+        headerUserIcon.parentElement.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+        headerUserIcon.parentElement.style.background = 'rgba(255, 255, 255, 0.08)';
+      }
+    }
+  };
+
+  // Open / Close Modal
+  if (btnAuthTrigger) {
+    btnAuthTrigger.addEventListener('click', () => {
+      hideAlert();
+      updateAuthUI();
+      if (authModal) authModal.style.display = 'flex';
+    });
+  }
+
+  if (btnCloseAuthModal) {
+    btnCloseAuthModal.addEventListener('click', () => {
+      if (authModal) authModal.style.display = 'none';
+    });
+  }
+
+  // Tabs
+  if (tabLogin) {
+    tabLogin.addEventListener('click', () => {
+      currentAuthTab = 'login';
+      tabLogin.classList.add('active');
+      tabLogin.style.background = 'rgba(255,255,255,0.12)';
+      tabLogin.style.color = '#fff';
+      if (tabSignup) {
+        tabSignup.classList.remove('active');
+        tabSignup.style.background = 'transparent';
+        tabSignup.style.color = 'var(--text-muted)';
+      }
+      if (nameGroup) nameGroup.style.display = 'none';
+      if (confirmGroup) confirmGroup.style.display = 'none';
+      if (btnSubmitText) btnSubmitText.textContent = 'Sign In';
+      hideAlert();
+    });
+  }
+
+  if (tabSignup) {
+    tabSignup.addEventListener('click', () => {
+      currentAuthTab = 'signup';
+      tabSignup.classList.add('active');
+      tabSignup.style.background = 'rgba(255,255,255,0.12)';
+      tabSignup.style.color = '#fff';
+      if (tabLogin) {
+        tabLogin.classList.remove('active');
+        tabLogin.style.background = 'transparent';
+        tabLogin.style.color = 'var(--text-muted)';
+      }
+      if (nameGroup) nameGroup.style.display = 'block';
+      if (confirmGroup) confirmGroup.style.display = 'block';
+      if (btnSubmitText) btnSubmitText.textContent = 'Create Account';
+      hideAlert();
+    });
+  }
+
+  // Email Submit
+  if (emailForm) {
+    emailForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAlert();
+
+      const email = inputEmail?.value?.trim() || '';
+      const password = inputPassword?.value || '';
+      const confirmPass = inputConfirm?.value || '';
+      const fullName = inputName?.value?.trim() || '';
+
+      if (!email.includes('@') || !email.includes('.')) {
+        showAlert('Please enter a valid email address.');
+        return;
+      }
+      if (password.length < 6) {
+        showAlert('Password must be at least 6 characters.');
+        return;
+      }
+      if (currentAuthTab === 'signup' && password !== confirmPass) {
+        showAlert('Passwords do not match.');
+        return;
+      }
+
+      if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.style.opacity = '0.6';
+      }
+
+      try {
+        if (currentAuthTab === 'login') {
+          await window.MoodSupabase.signInWithEmail(email, password);
+          showToast('Signed in successfully! 🎉');
+        } else {
+          const res = await window.MoodSupabase.signUpWithEmail(email, password, fullName);
+          if (res && res.session) {
+            showToast('Account created & logged in! 🎉');
+          } else {
+            showAlert('Account created! Please check your email for confirmation link.', false);
+            return;
+          }
+        }
+        await updateAuthUI();
+        setTimeout(() => {
+          if (authModal) authModal.style.display = 'none';
+        }, 800);
+      } catch (err) {
+        console.error('[Supabase Auth UI Error]:', err);
+        let msg = err.message || 'Authentication error';
+        if (msg.toLowerCase().includes('invalid login credentials')) {
+          msg = 'Invalid email or password.';
+        }
+        showAlert(msg);
+      } finally {
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.style.opacity = '1';
+        }
+      }
+    });
+  }
+
+  // Google OAuth
+  if (btnGoogle) {
+    btnGoogle.addEventListener('click', async () => {
+      try {
+        await window.MoodSupabase.signInWithGoogle();
+      } catch (err) {
+        showAlert(err.message || 'Google sign in failed');
+      }
+    });
+  }
+
+  // Sign Out
+  if (btnSignOut) {
+    btnSignOut.addEventListener('click', async () => {
+      try {
+        await window.MoodSupabase.signOut();
+        showToast('Signed out of MoodBeats');
+        await updateAuthUI();
+      } catch (err) {
+        showToast('Error signing out');
+      }
+    });
+  }
+
+  // Cloud Sync
+  if (btnSyncCloud) {
+    btnSyncCloud.addEventListener('click', async () => {
+      try {
+        btnSyncCloud.disabled = true;
+        btnSyncCloud.innerHTML = '<i data-lucide="refresh-cw" class="animate-spin"></i><span>Syncing...</span>';
+        if (window.lucide) lucide.createIcons();
+
+        const cloudLikes = await window.MoodSupabase.fetchCloudLikedSongs();
+        if (cloudLikes && cloudLikes.length > 0) {
+          // Merge with local state
+          const existingIds = new Set(state.likedSongs.map(s => s.id));
+          cloudLikes.forEach(song => {
+            if (!existingIds.has(song.id)) {
+              state.likedSongs.push(song);
+            }
+          });
+          try {
+            localStorage.setItem('moodbeats_liked_songs', JSON.stringify(state.likedSongs));
+          } catch(e) {}
+          updateLibraryLikedHero();
+        }
+        showToast('Favorites & history synced from Supabase Cloud! ☁️');
+      } catch (err) {
+        showToast('Cloud sync completed');
+      } finally {
+        btnSyncCloud.disabled = false;
+        btnSyncCloud.innerHTML = '<i data-lucide="refresh-cw"></i><span>Sync Favorites & History Now</span>';
+        if (window.lucide) lucide.createIcons();
+      }
+    });
+  }
+
+  // Check on load
+  updateAuthUI();
+}

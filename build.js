@@ -16,6 +16,7 @@ for (const dir of targetDirs) {
     'styles.css',
     'app.js',
     'jiosaavnApi.js',
+    'supabaseService.js',
     'face-api.min.js',
     'lucide.min.js',
     'icon.png',
