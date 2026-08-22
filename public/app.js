@@ -4841,6 +4841,54 @@ document.addEventListener('DOMContentLoaded', () => {
   initDailyMixes();
   initSoundscapesHub();
 
+  // Spotify Top Recommendation 2x2 Grid Handlers
+  const recLiked = document.getElementById('rec-card-liked');
+  if (recLiked) {
+    recLiked.addEventListener('click', () => {
+      showView('history');
+      const likedTab = document.querySelector('.lib-pill[data-lib-filter="liked"]');
+      if (likedTab) likedTab.click();
+    });
+  }
+
+  const recDiscover = document.getElementById('rec-card-discover');
+  if (recDiscover) {
+    recDiscover.addEventListener('click', () => {
+      const dm = DAILY_MIXES.find(m => m.id === 'dm_1') || DAILY_MIXES[0];
+      if (dm) playDailyMix(dm);
+    });
+  }
+
+  const recRadar = document.getElementById('rec-card-radar');
+  if (recRadar) {
+    recRadar.addEventListener('click', () => {
+      const dm = DAILY_MIXES.find(m => m.id === 'dm_radar') || DAILY_MIXES[DAILY_MIXES.length - 1];
+      if (dm) playDailyMix(dm);
+    });
+  }
+
+  const recDaily = document.getElementById('rec-card-daily');
+  if (recDaily) {
+    recDaily.addEventListener('click', () => {
+      const dm = DAILY_MIXES.find(m => m.id === 'dm_2') || DAILY_MIXES[1];
+      if (dm) playDailyMix(dm);
+    });
+  }
+
+  const headerHist = document.getElementById('header-history-btn');
+  if (headerHist) {
+    headerHist.addEventListener('click', () => {
+      showView('history');
+    });
+  }
+
+  const headerSet = document.getElementById('header-settings-btn');
+  if (headerSet) {
+    headerSet.addEventListener('click', () => {
+      showView('settings');
+    });
+  }
+
   // Camera device switcher listener
   const deviceSelect = document.getElementById('camera-device-select');
   if (deviceSelect) {

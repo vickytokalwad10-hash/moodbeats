@@ -26,10 +26,11 @@
     })();
   </script>
 
-  <!-- Google Fonts: Inter -->
+  <!-- Google Fonts: Inter, Metrophobic, Barlow Condensed, Material Symbols -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Metrophobic:wght@400;500;700&family=Bodoni+Moda:wght@400;500;700&family=Barlow+Condensed:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
 
   <!-- CDN Preconnects for faster resource loading -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
@@ -112,8 +113,46 @@
       <section id="view-landing" class="view active">
         <!-- Greeting Header -->
         <div class="home-greeting">
-          <h1 id="home-greeting-text">Good day 👋</h1>
-          <p>What's your vibe today? Let's find the perfect soundtrack.</p>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h1 id="home-greeting-text" style="font-family:'Metrophobic', 'Inter', sans-serif; font-size:28px; font-weight:700;">Good day 👋</h1>
+            <div style="display:flex; gap:12px; color:var(--text-muted);">
+              <span class="material-symbols-outlined cursor-pointer hover:text-white" title="Notifications">notifications</span>
+              <span class="material-symbols-outlined cursor-pointer hover:text-white" id="header-history-btn" title="Listening History">history</span>
+              <span class="material-symbols-outlined cursor-pointer hover:text-white" id="header-settings-btn" title="Settings">settings</span>
+            </div>
+          </div>
+          <p style="color:var(--text-muted); font-size:14px; margin-top:4px;">What's your vibe today? Let's find the perfect soundtrack.</p>
+        </div>
+
+        <!-- Spotify Top Recommendation 2x2 Grid -->
+        <div class="spotify-top-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0 20px;">
+          <div class="spotify-rec-card" id="rec-card-liked" style="background:#1e1f25; border-radius:6px; display:flex; align-items:center; gap:12px; overflow:hidden; cursor:pointer; transition:background 0.2s;" onmouseover="this.style.background='#282a2f'" onmouseout="this.style.background='#1e1f25'">
+            <div style="width:56px; height:56px; background:linear-gradient(135deg, #450af5, #c4efd9); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              <span class="material-symbols-outlined icon-fill" style="color:#fff; font-size:26px;">favorite</span>
+            </div>
+            <span style="font-weight:700; font-size:14px; color:#e2e2e9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:8px;">Liked Songs</span>
+          </div>
+
+          <div class="spotify-rec-card" id="rec-card-discover" style="background:#1e1f25; border-radius:6px; display:flex; align-items:center; gap:12px; overflow:hidden; cursor:pointer; transition:background 0.2s;" onmouseover="this.style.background='#282a2f'" onmouseout="this.style.background='#1e1f25'">
+            <div style="width:56px; height:56px; background:linear-gradient(135deg, #1DB954, #191414); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              <span class="material-symbols-outlined" style="color:#fff; font-size:26px;">explore</span>
+            </div>
+            <span style="font-weight:700; font-size:14px; color:#e2e2e9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:8px;">Discover Weekly</span>
+          </div>
+
+          <div class="spotify-rec-card" id="rec-card-radar" style="background:#1e1f25; border-radius:6px; display:flex; align-items:center; gap:12px; overflow:hidden; cursor:pointer; transition:background 0.2s;" onmouseover="this.style.background='#282a2f'" onmouseout="this.style.background='#1e1f25'">
+            <div style="width:56px; height:56px; background:linear-gradient(135deg, #e11d48, #4c0519); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              <span class="material-symbols-outlined" style="color:#fff; font-size:26px;">radar</span>
+            </div>
+            <span style="font-weight:700; font-size:14px; color:#e2e2e9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:8px;">Release Radar</span>
+          </div>
+
+          <div class="spotify-rec-card" id="rec-card-daily" style="background:#1e1f25; border-radius:6px; display:flex; align-items:center; gap:12px; overflow:hidden; cursor:pointer; transition:background 0.2s;" onmouseover="this.style.background='#282a2f'" onmouseout="this.style.background='#1e1f25'">
+            <div style="width:56px; height:56px; background:linear-gradient(135deg, #0284c7, #082f49); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              <span class="material-symbols-outlined" style="color:#fff; font-size:26px;">graphic_eq</span>
+            </div>
+            <span style="font-weight:700; font-size:14px; color:#e2e2e9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:8px;">Daily Mix 1</span>
+          </div>
         </div>
 
         <!-- Detect Your Mood Section -->
@@ -219,19 +258,30 @@
         </div>
 
         <div class="webcam-scanner-container glass">
-          <!-- WebCam Feed Area -->
+          <!-- WebCam Feed Area with Spotify Scanner Styling -->
           <div class="camera-frame-wrapper">
             <div class="camera-glow-border"></div>
-            <div class="camera-frame">
-              <video id="webcam-video" autoplay playsinline muted></video>
-              <canvas id="webcam-overlay"></canvas>
+            <div class="camera-frame" style="position:relative; aspect-ratio:3/4; max-width:320px; margin:0 auto; border-radius:12px; overflow:hidden; background:#1e1f25;">
+              <video id="webcam-video" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;"></video>
+              <canvas id="webcam-overlay" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;"></canvas>
               
-              <!-- Scanning Effect overlay -->
-              <div class="scan-bar" id="scan-bar"></div>
+              <!-- 4 Corner Brackets -->
+              <div class="corner-bracket top-left"></div>
+              <div class="corner-bracket top-right"></div>
+              <div class="corner-bracket bottom-left"></div>
+              <div class="corner-bracket bottom-right"></div>
+
+              <!-- Animated Neon Green Laser Scan Line -->
+              <div class="scan-line" id="scan-bar"></div>
+              
+              <!-- Face Outline Guide -->
+              <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0.25; z-index:15;">
+                <span class="material-symbols-outlined" style="font-size:140px; color:#e2e2e9;">face</span>
+              </div>
               
               <!-- Placeholder / Access Request Overlay with Scanner Skeleton -->
-              <div class="camera-overlay-state active" id="camera-loading-overlay" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:20px;">
-                <div class="skeleton-pulse" style="width:72px; height:72px; border-radius:50%; background:rgba(168,85,247,0.15); border:2px dashed rgba(168,85,247,0.4); display:flex; align-items:center; justify-content:center; font-size:28px;">
+              <div class="camera-overlay-state active" id="camera-loading-overlay" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:20px; z-index:30;">
+                <div class="skeleton-pulse" style="width:72px; height:72px; border-radius:50%; background:rgba(29,185,84,0.15); border:2px dashed rgba(29,185,84,0.5); display:flex; align-items:center; justify-content:center; font-size:28px;">
                   📷
                 </div>
                 <div class="skeleton-shimmer" style="width:180px; height:14px; border-radius:6px;"></div>
@@ -239,7 +289,7 @@
               </div>
 
               <!-- Fallback View (denied/no camera) -->
-              <div class="camera-overlay-state" id="camera-fallback-overlay">
+              <div class="camera-overlay-state" id="camera-fallback-overlay" style="z-index:30;">
                 <i data-lucide="camera-off" class="fallback-icon"></i>
                 <h3 id="camera-error-title">Webcam Access Blocked</h3>
                 <p id="camera-error-msg">We need camera permission to scan your face. Please allow camera access and try again.</p>
@@ -437,11 +487,60 @@
           </div>
         </div>
 
-        <!-- Initial Search Empty State -->
-        <div id="search-empty-state" style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:50px 20px; gap:12px; text-align:center;">
-          <div style="font-size:48px;">🔍</div>
-          <h3 style="font-size:18px; font-weight:700;">Find your favorite sound</h3>
-          <p style="color:var(--text-muted); font-size:14px; max-width:320px;">Search for songs, artists like Arijit Singh or Taylor Swift, YouTube videos, or custom playlists.</p>
+        <!-- Initial Search Empty State with Spotify "Browse all" -->
+        <div id="search-empty-state" style="display:flex; flex-direction:column; gap:16px; padding-bottom:120px;">
+          <h3 style="font-family:'Metrophobic', 'Inter', sans-serif; font-size:20px; font-weight:700; color:#e2e2e9;">Browse all</h3>
+          <div class="browse-all-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            
+            <!-- Podcasts Card -->
+            <div class="browse-category-card" onclick="document.getElementById('search-input').value='Podcast'; onUnifiedSearch('Podcast');" style="background:#2d58a3; border-radius:8px; position:relative; overflow:hidden; aspect-ratio:4/3; padding:12px; cursor:pointer; user-select:none;">
+              <span style="font-weight:700; font-size:16px; color:#bfd1ff; position:absolute; top:12px; left:12px; z-index:10; max-width:70%; line-height:1.2;">Podcasts</span>
+              <div style="position:absolute; bottom:-8px; right:-16px; width:72px; height:72px; transform:rotate(25deg); border-radius:4px; overflow:hidden; box-shadow:0 8px 16px rgba(0,0,0,0.4); background:#33353a;">
+                <img src="https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=200&auto=format&fit=crop&q=60" style="width:100%; height:100%; object-fit:cover;">
+              </div>
+            </div>
+
+            <!-- Live Events Card -->
+            <div class="browse-category-card" onclick="document.getElementById('search-input').value='Live Concert'; onUnifiedSearch('Live Concert');" style="background:#3b4967; border-radius:8px; position:relative; overflow:hidden; aspect-ratio:4/3; padding:12px; cursor:pointer; user-select:none;">
+              <span style="font-weight:700; font-size:16px; color:#aab8db; position:absolute; top:12px; left:12px; z-index:10; max-width:70%; line-height:1.2;">Live Events</span>
+              <div style="position:absolute; bottom:-8px; right:-16px; width:72px; height:72px; transform:rotate(25deg); border-radius:4px; overflow:hidden; box-shadow:0 8px 16px rgba(0,0,0,0.4); background:#33353a;">
+                <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200&auto=format&fit=crop&q=60" style="width:100%; height:100%; object-fit:cover;">
+              </div>
+            </div>
+
+            <!-- Made For You Card -->
+            <div class="browse-category-card" onclick="document.getElementById('search-input').value='Made For You'; onUnifiedSearch('Made For You');" style="background:#8a4900; border-radius:8px; position:relative; overflow:hidden; aspect-ratio:4/3; padding:12px; cursor:pointer; user-select:none;">
+              <span style="font-weight:700; font-size:16px; color:#ffc69a; position:absolute; top:12px; left:12px; z-index:10; max-width:70%; line-height:1.2;">Made For You</span>
+              <div style="position:absolute; bottom:-8px; right:-16px; width:72px; height:72px; transform:rotate(25deg); border-radius:4px; overflow:hidden; box-shadow:0 8px 16px rgba(0,0,0,0.4); background:#33353a;">
+                <img src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&auto=format&fit=crop&q=60" style="width:100%; height:100%; object-fit:cover;">
+              </div>
+            </div>
+
+            <!-- New Releases Card -->
+            <div class="browse-category-card" onclick="document.getElementById('search-input').value='New Releases 2026'; onUnifiedSearch('New Releases 2026');" style="background:#93000a; border-radius:8px; position:relative; overflow:hidden; aspect-ratio:4/3; padding:12px; cursor:pointer; user-select:none;">
+              <span style="font-weight:700; font-size:16px; color:#ffdad6; position:absolute; top:12px; left:12px; z-index:10; max-width:70%; line-height:1.2;">New Releases</span>
+              <div style="position:absolute; bottom:-8px; right:-16px; width:72px; height:72px; transform:rotate(25deg); border-radius:4px; overflow:hidden; box-shadow:0 8px 16px rgba(0,0,0,0.4); background:#33353a;">
+                <img src="https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=200&auto=format&fit=crop&q=60" style="width:100%; height:100%; object-fit:cover;">
+              </div>
+            </div>
+
+            <!-- Pop Card -->
+            <div class="browse-category-card" onclick="document.getElementById('search-input').value='Bollywood Pop'; onUnifiedSearch('Bollywood Pop');" style="background:#37393e; border-radius:8px; position:relative; overflow:hidden; aspect-ratio:4/3; padding:12px; cursor:pointer; user-select:none;">
+              <span style="font-weight:700; font-size:16px; color:#e2e2e9; position:absolute; top:12px; left:12px; z-index:10; max-width:70%; line-height:1.2;">Pop</span>
+              <div style="position:absolute; bottom:-8px; right:-16px; width:72px; height:72px; transform:rotate(25deg); border-radius:4px; overflow:hidden; box-shadow:0 8px 16px rgba(0,0,0,0.4); background:#33353a;">
+                <img src="https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200&auto=format&fit=crop&q=60" style="width:100%; height:100%; object-fit:cover;">
+              </div>
+            </div>
+
+            <!-- Hip-Hop Card -->
+            <div class="browse-category-card" onclick="document.getElementById('search-input').value='Hip-Hop'; onUnifiedSearch('Hip-Hop');" style="background:#1e1f25; border:1px solid rgba(255,255,255,0.06); border-radius:8px; position:relative; overflow:hidden; aspect-ratio:4/3; padding:12px; cursor:pointer; user-select:none;">
+              <span style="font-weight:700; font-size:16px; color:#e2e2e9; position:absolute; top:12px; left:12px; z-index:10; max-width:70%; line-height:1.2;">Hip-Hop</span>
+              <div style="position:absolute; bottom:-8px; right:-16px; width:72px; height:72px; transform:rotate(25deg); border-radius:4px; overflow:hidden; box-shadow:0 8px 16px rgba(0,0,0,0.4); background:#33353a;">
+                <img src="https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=200&auto=format&fit=crop&q=60" style="width:100%; height:100%; object-fit:cover;">
+              </div>
+            </div>
+
+          </div>
         </div>
 
         <!-- Search No Results State (prevents blank screen when 0 results return) -->
@@ -584,11 +683,43 @@
         </div>
       </section>
 
-      <!-- 6. Settings View -->
+      <!-- 6. Settings View (Spotify Style) -->
       <section id="view-settings" class="view">
-        <div class="screen-title-area">
-          <h2>Settings</h2>
-          <p>Configure the MoodBeats experience.</p>
+        <!-- Spotify Profile Header -->
+        <div class="spotify-profile-header" style="display:flex; align-items:center; gap:16px; padding:16px 0 20px; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:16px;">
+          <div style="width:76px; height:76px; border-radius:50%; overflow:hidden; flex-shrink:0; background:#1e1f25; border:2px solid rgba(255,255,255,0.1);">
+            <img id="profile-avatar-img" src="icon.png" style="width:100%; height:100%; object-fit:cover;" alt="User Avatar">
+          </div>
+          <div>
+            <h2 id="profile-username-text" style="font-family:'Metrophobic', 'Inter', sans-serif; font-size:24px; font-weight:700; color:#e2e2e9; margin:0;">Guest User</h2>
+            <p id="profile-email-text" style="font-size:13px; color:var(--text-muted); margin:2px 0 6px 0;">Sign in to sync your mood history</p>
+            <div style="display:flex; gap:12px; font-size:12px; color:#aab8db;">
+              <span><strong id="profile-saved-count-tag" style="color:#e2e2e9;">0</strong> Saved</span>
+              <span>•</span>
+              <span><strong id="profile-playlist-count-tag" style="color:#e2e2e9;">0</strong> Playlists</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Spotify Stats Row -->
+        <div class="spotify-stats-row hide-scrollbar" style="display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; margin-bottom:20px;">
+          <div class="spotify-stat-card" style="flex-shrink:0; width:120px; height:120px; background:#1e1f25; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:10px; cursor:pointer;" onclick="showView('history');">
+            <span class="material-symbols-outlined icon-fill" style="font-size:32px; color:#1DB954; margin-bottom:6px;">favorite</span>
+            <span id="profile-stats-saved" style="font-size:20px; font-weight:700; color:#e2e2e9;">0</span>
+            <span style="font-size:11px; color:#aab8db; text-align:center;">Saved Songs</span>
+          </div>
+
+          <div class="spotify-stat-card" style="flex-shrink:0; width:120px; height:120px; background:#1e1f25; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:10px; cursor:pointer;" onclick="showView('history');">
+            <span class="material-symbols-outlined icon-fill" style="font-size:32px; color:#aec6ff; margin-bottom:6px;">queue_music</span>
+            <span id="profile-stats-playlists" style="font-size:20px; font-weight:700; color:#e2e2e9;">0</span>
+            <span style="font-size:11px; color:#aab8db; text-align:center;">Playlists</span>
+          </div>
+
+          <div class="spotify-stat-card" style="flex-shrink:0; width:120px; height:120px; background:#1e1f25; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:10px; cursor:pointer;" onclick="showView('history');">
+            <span class="material-symbols-outlined icon-fill" style="font-size:32px; color:#ffb77d; margin-bottom:6px;">history</span>
+            <span id="profile-stats-scans" style="font-size:20px; font-weight:700; color:#e2e2e9;">0</span>
+            <span style="font-size:11px; color:#aab8db; text-align:center;">Mood Scans</span>
+          </div>
         </div>
 
         <div class="settings-list glass">
